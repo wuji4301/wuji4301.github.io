@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>无极 · 博客</title>
+    <meta name="description" content="无极的个人博客" />
+    <meta name="theme-color" content="#08070d" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f4f1fb" media="(prefers-color-scheme: light)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="无极 · 博客" />
+    <meta property="og:description" content="无极的个人博客" />
+    <meta property="og:url" content="https://wuji101026.github.io/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="无极 · 博客" />
+    <meta name="twitter:description" content="无极的个人博客" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='88'%3E%F0%9F%8C%8C%3C/text%3E%3C/svg%3E" />
+    <style>
+        /* ========== 主题变量 ========== */
+        :root,
+        [data-theme="dark"] {
+            color-scheme: dark;
+            --nav-h: 68px;
+            --bg: #08070d;
+            --bg-soft: #0e0c16;
+            --panel: rgba(255, 255, 255, 0.04);
+            --panel-hover: rgba(255, 255, 255, 0.08);
+            --border: rgba(255, 255, 255, 0.10);
+            --border-strong: rgba(255, 255, 255, 0.18);
+            --text: #f4eeff;
+            --text-2: #c9bce0;
+            --text-muted: #8d7aae;
+            --text-faint: #6c5b8e;
+            --accent: #8b6dff;
+            --accent-2: #5ad1ff;
+            --accent-3: #ff6fb0;
+            --glow: rgba(139, 109, 255, 0.45);
+            --grid-line: rgba(255, 255, 255, 0.045);
+            --shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.85);
+            --nav-bg: rgba(8, 7, 13, 0.62);
+        }
+
+        [data-theme="light"] {
+            color-scheme: light;
+            --bg: #f4f1fb;
+            --bg-soft: #ece6f7;
+            --panel: rgba(255, 255, 255, 0.62);
+            --panel-hover: rgba(255, 255, 255, 0.92);
+            --border: rgba(124, 92, 255, 0.16);
+            --border-strong: rgba(124, 92, 255, 0.34);
+            --text: #221433;
+            --text-2: #4d3a66;
+            --text-muted: #7c6799;
+            --text-faint: #a390bf;
+            --accent: #6a44e6;
+            --accent-2: #1f8fe0;
+            --accent-3: #e0458f;
+            --glow: rgba(124, 92, 255, 0.30);
+            --grid-line: rgba(90, 60, 160, 0.06);
+            --shadow: 0 30px 70px -34px rgba(110, 70, 180, 0.40);
+            --nav-bg: rgba(244, 241, 251, 0.70);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: var(--nav-h);
+            /* 滚动条槽常驻：滚动条出现/消失不再引发整页重排 */
+            scrollbar-gutter: stable;
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+            overscroll-behavior-y: contain;
+            -webkit-font-smoothing: antialiased;
+            transition: background 0.4s ease, color 0.4s ease;
+        }
+        /* 去除移动端点击高亮；交互元素统一用 :active 反馈代替（见「触屏反馈」段） */
+        a, button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+        /* ========== 背景层 ========== */
+        .bg-fx {
+            position: fixed;
+            inset: 0;
+            z-index: -2;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .bg-fx::before {
+            content: "";
+            position: absolute;
+            inset: -30%;
+            background:
+                radial-gradient(40vw 40vw at 12% 8%, var(--glow), transparent 60%),
+                radial-gradient(38vw 38vw at 88% 18%, rgba(90, 209, 255, 0.30), transparent 60%),
+                radial-gradient(46vw 46vw at 70% 96%, rgba(255, 111, 176, 0.26), transparent 62%);
+            filter: blur(20px);
+            opacity: 0.9;
+            animation: floatGlow 24s ease-in-out infinite alternate;
+        }
+        .bg-fx::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--grid-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+            background-size: 64px 64px;
+            mask-image: radial-gradient(circle at 50% 35%, #000 0%, transparent 78%);
+            -webkit-mask-image: radial-gradient(circle at 50% 35%, #000 0%, transparent 78%);
+        }
+        @keyframes floatGlow {
+            0% { transform: translate3d(0,0,0) scale(1); }
+            100% { transform: translate3d(2%, -3%, 0) scale(1.08); }
+        }
+
+        /* 三体运动：全屏背景板（位于 bg-fx 之上、页面内容之下） */
+        .three-bg {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            overflow: hidden;
+            pointer-events: none;
+            opacity: 0.85;
+        }
+
+        /* ========== 动态：滚动进度 + 光标光晕 ========== */
+        .progress {
+            position: fixed;
+            top: 0; left: 0;
+            height: 3px;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3));
+            z-index: 60;
+            transition: width 0.1s linear;
+        }
+        .cursor-glow {
+            position: fixed;
+            top: 0; left: 0;
+            width: 540px; height: 540px;
+            margin: -270px 0 0 -270px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--glow), transparent 62%);
+            opacity: 0.5;
+            pointer-events: none;
+            z-index: -1;
+            will-change: transform;
+            transition: opacity 0.3s ease;
+        }
+        @media (hover: none) { .cursor-glow { display: none; } }
+        /* 触屏低端机：背景光晕层 blur 半径减半（大半径高斯模糊的初次光栅化最贵，且纹理更占显存），观感几乎无差 */
+        @media (hover: none) and (pointer: coarse) {
+            .bg-fx::before { filter: blur(12px); }
+        }
+
+        /* ========== 导航 ========== */
+        .nav {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px clamp(18px, 5vw, 56px);
+            padding-left: max(clamp(18px, 5vw, 56px), env(safe-area-inset-left));
+            padding-right: max(clamp(18px, 5vw, 56px), env(safe-area-inset-right));
+            background: var(--nav-bg);
+            backdrop-filter: blur(16px) saturate(150%);
+            -webkit-backdrop-filter: blur(16px) saturate(150%);
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.3s ease, background 0.3s ease;
+        }
+        .nav.scrolled { border-bottom-color: var(--border); }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            font-weight: 800;
+            font-size: 18px;
+            letter-spacing: 0.5px;
+            color: var(--text);
+            text-decoration: none;
+        }
+        .brand .mark {
+            width: 34px; height: 34px;
+            display: grid;
+            place-items: center;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 800;
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent), var(--accent-3));
+            box-shadow: 0 6px 18px -6px var(--glow);
+        }
+
+        .nav-links { display: flex; align-items: center; gap: 6px; }
+        .nav-links a {
+            position: relative;
+            padding: 8px 14px;
+            font-size: 14.5px;
+            color: var(--text-2);
+            text-decoration: none;
+            border-radius: 10px;
+            transition: color 0.25s ease, background 0.25s ease;
+        }
+        .nav-links a:hover { color: var(--text); background: var(--panel); }
+        .nav-links a.active { color: var(--text); }
+        .nav-links a::after {
+            content: "";
+            position: absolute;
+            left: 14px; right: 14px; bottom: 2px;
+            height: 2px;
+            border-radius: 2px;
+            background: linear-gradient(90deg, var(--accent), var(--accent-2));
+            transform: scaleX(0);
+            opacity: 0;
+            transition: transform 0.35s cubic-bezier(.16,1,.3,1), opacity 0.3s ease;
+        }
+        .nav-links a.active::after { transform: scaleX(1); opacity: 1; }
+
+        .nav-right { display: flex; align-items: center; gap: 10px; }
+        .theme-toggle {
+            width: 40px; height: 40px;
+            display: grid;
+            place-items: center;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--panel);
+            color: var(--text-2);
+            cursor: pointer;
+            font-size: 17px;
+            transition: transform 0.3s cubic-bezier(.22,1,.36,1), color 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+        }
+        .theme-toggle:hover { color: var(--text); border-color: var(--border-strong); transform: translateY(-1px); }
+
+        /* 右上角「开启」按钮：开关首页三体太空音乐 */
+        .nav-open {
+            display: inline-flex; align-items: center; gap: 6px;
+            height: 40px; padding: 0 16px;
+            appearance: none; -webkit-appearance: none;
+            font-family: inherit; line-height: 1;
+            border: none; border-radius: 12px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #05101e; font-weight: 700; font-size: 14px;
+            cursor: pointer; white-space: nowrap;
+            box-shadow: 0 6px 20px rgba(91, 209, 255, .18);
+            transition: transform .25s cubic-bezier(.22,1,.36,1), box-shadow .25s ease, filter .25s ease;
+        }
+        .nav-open:hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 10px 28px rgba(91, 209, 255, .28); }
+        .nav-open:active { transform: scale(.96); }
+        .nav-open.on { animation: navPulse 2.4s ease-in-out infinite; }
+        @keyframes navPulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(91, 209, 255, .35), 0 8px 22px rgba(91, 209, 255, .25); }
+            50% { box-shadow: 0 0 0 3px rgba(91, 209, 255, .6), 0 12px 30px rgba(91, 209, 255, .45); }
+        }
+        @media (max-width: 560px) {
+            .nav-open { padding: 0 12px; font-size: 13px; }
+        }
+
+        /* 移动端汉堡按钮（仅小屏显示） */
+        .nav-toggle {
+            display: none;
+            width: 40px; height: 40px;
+            place-items: center;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--panel);
+            color: var(--text-2);
+            cursor: pointer;
+            font-size: 17px;
+            transition: color 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+        }
+        .nav-toggle:hover { color: var(--text); border-color: var(--border-strong); }
+
+        /* 移动端下拉菜单 */
+        .mobile-menu {
+            position: fixed;
+            top: var(--nav-h); left: 0; right: 0;
+            z-index: 49;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 12px clamp(18px, 5vw, 56px) 18px;
+            padding-left: max(clamp(18px, 5vw, 56px), env(safe-area-inset-left));
+            padding-right: max(clamp(18px, 5vw, 56px), env(safe-area-inset-right));
+            background: var(--nav-bg);
+            backdrop-filter: blur(16px) saturate(150%);
+            -webkit-backdrop-filter: blur(16px) saturate(150%);
+            border-bottom: 1px solid var(--border);
+            opacity: 0;
+            transform: translateY(-12px);
+            pointer-events: none;
+            visibility: hidden;
+            transition: opacity 0.3s ease, transform 0.3s cubic-bezier(.16,1,.36,1), visibility 0s linear 0.3s;
+        }
+        .mobile-menu.open {
+            opacity: 1; transform: none; pointer-events: auto; visibility: visible;
+            transition: opacity 0.3s ease, transform 0.3s cubic-bezier(.16,1,.36,1), visibility 0s;
+        }
+        .mobile-menu a {
+            padding: 13px 14px;
+            font-size: 16px;
+            color: var(--text-2);
+            text-decoration: none;
+            border-radius: 12px;
+            transition: color 0.2s ease, background 0.2s ease;
+        }
+        .mobile-menu a:hover,
+        .mobile-menu a.active { color: var(--text); background: var(--panel); }
+
+        /* ========== 通用容器 ========== */
+        .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 clamp(18px, 5vw, 56px); }
+        section { scroll-margin-top: calc(var(--nav-h) + 16px); }
+        /* 离屏区块跳过渲染：降低初始布局/滚动开销（含内在尺寸防滚动条跳动） */
+        #contact { content-visibility: auto; contain-intrinsic-size: auto 460px; }
+
+        /* ========== Hero ========== */
+        .hero {
+            position: relative;
+            min-height: calc(100vh - var(--nav-h));
+            min-height: calc(100svh - var(--nav-h));
+            display: grid;
+            grid-template-columns: 1fr;
+            align-items: center;
+            gap: clamp(28px, 5vw, 72px);
+            padding: clamp(40px, 8vh, 96px) 0;
+        }
+        .hero h1 {
+            font-size: clamp(40px, 7vw, 76px);
+            font-weight: 850;
+            line-height: 1.04;
+            letter-spacing: -1.5px;
+            margin: 22px 0 18px;
+            text-shadow: 0 2px 30px rgba(0, 0, 0, 0.55);
+        }
+        .hero h1 .grad {
+            background: linear-gradient(110deg, var(--accent) 0%, var(--accent-2) 45%, var(--accent-3) 70%, var(--accent) 100%);
+            background-size: 220% 220%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
+            animation: gradShift 7s ease-in-out infinite;
+        }
+        @keyframes gradShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        .cta { display: flex; flex-wrap: wrap; gap: 14px; }
+
+        /* Hero 入场动画（仅加载时播放一次，带错落延迟） */
+        @keyframes heroIn {
+            from { opacity: 0; transform: translateY(18px); }
+            to   { opacity: 1; transform: none; }
+        }
+        .hero-copy { text-align: center; }   /* Hero 标题与按钮整体居中 */
+        .hero-copy > * { animation: heroIn 0.9s cubic-bezier(.16,1,.36,1) both; }
+        .hero-copy h1 { animation-delay: 0.15s; }
+        .hero-copy .cta { animation-delay: 0.32s; justify-content: center; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            padding: 13px 24px;
+            font-size: 15px;
+            font-weight: 650;
+            border-radius: 14px;
+            text-decoration: none;
+            cursor: pointer;
+            border: 1px solid transparent;
+            /* 更柔的缓动：接近用短缓动跟手，离开用长缓动回弹，避免「啪」地弹起 */
+            transition: transform 0.3s cubic-bezier(.22,1,.36,1), box-shadow 0.35s ease, background 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        }
+        /* will-change 仅在悬浮时开启，避免所有按钮常驻合成层（省内存、防图层爆炸） */
+        .btn:hover { will-change: transform; }
+        .btn-primary {
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent), var(--accent-3));
+            box-shadow: 0 14px 34px -12px var(--glow);
+        }
+        /* hover 仅作兜底（无 JS / 触屏时）；实际跟手位移由磁力脚本接管 */
+        .btn-primary:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 22px 46px -12px var(--glow); }
+        .btn-ghost {
+            color: var(--text);
+            background: var(--panel);
+            border-color: var(--border);
+        }
+        .btn-ghost:hover { transform: translateY(-3px) scale(1.02); border-color: var(--border-strong); background: var(--panel-hover); }
+
+        /* 三体运动画布：全屏背景板（3D 引力模拟 + 透视投影，真实牛顿引力混沌积分）。 */
+        .orbit3d {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            display: block;
+        }
+
+        /* 向下滚动指示器 */
+        .scroll-hint {
+            position: absolute;
+            left: 50%; bottom: 10px;
+            transform: translateX(-50%);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12.5px;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            text-decoration: none;
+            opacity: 0;
+            animation: hintIn 0.8s ease 1.1s both;
+        }
+        .scroll-hint span { display: inline-block; animation: bob 1.8s ease-in-out infinite; }
+        @keyframes hintIn { from { opacity: 0; } to { opacity: 0.9; } }
+        @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+
+        .section-pad { padding: clamp(56px, 10vh, 110px) 0; }
+
+        /* ========== 联系 ========== */
+        .contact {
+            text-align: center;
+            border-radius: 28px;
+            border: 1px solid var(--border);
+            background:
+                radial-gradient(120% 140% at 50% 0%, rgba(139,109,255,0.16), transparent 60%),
+                var(--panel);
+            padding: clamp(40px, 7vw, 72px) 24px;
+        }
+        .contact h2 { font-size: clamp(28px, 5vw, 46px); font-weight: 850; letter-spacing: -1px; }
+        .contact .cta { justify-content: center; }
+
+        /* ========== 页脚 ========== */
+        .footer {
+            margin-top: 40px;
+            border-top: 1px solid var(--border);
+            padding: clamp(36px, 6vh, 60px) 0 44px;
+        }
+        .footer-inner {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 22px;
+        }
+        .f-brand p { color: var(--text-muted); font-size: 13.5px; margin-top: 10px; }
+        .f-links { display: flex; flex-wrap: wrap; gap: 4px; }
+        .f-links a {
+            padding: 8px 12px;
+            font-size: 14px;
+            color: var(--text-2);
+            text-decoration: none;
+            border-radius: 10px;
+            transition: color 0.2s ease, background 0.2s ease;
+        }
+        .f-links a:hover { color: var(--text); background: var(--panel); }
+
+        /* ========== 回到顶部按钮 ========== */
+        .to-top {
+            position: fixed;
+            right: max(clamp(16px, 3vw, 28px), env(safe-area-inset-right));
+            bottom: max(clamp(16px, 3vw, 28px), env(safe-area-inset-bottom));
+            width: 48px; height: 48px;
+            display: grid;
+            place-items: center;
+            border: none;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-3));
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 14px 34px -12px var(--glow);
+            opacity: 0;
+            transform: translateY(16px) scale(0.9);
+            pointer-events: none;
+            z-index: 55;
+            transition: opacity 0.35s ease, transform 0.35s cubic-bezier(.22,1,.36,1), box-shadow 0.3s ease;
+        }
+        .to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+        .to-top:hover { box-shadow: 0 22px 46px -12px var(--glow); }
+
+        /* ========== 滚动揭示 ========== */
+        .reveal { opacity: 0; }
+        .reveal.in { animation: revealIn 0.8s cubic-bezier(.16,1,.36,1) both; }
+        @keyframes revealIn {
+            from { opacity: 0; transform: translateY(26px) scale(0.985); }
+            to   { opacity: 1; transform: none; }
+        }
+
+        /* ========== 键盘焦点可见（无障碍）========== */
+        :focus-visible {
+            outline: 2px solid var(--accent-2);
+            outline-offset: 3px;
+            border-radius: 8px;
+        }
+
+        /* ========== 触屏反馈（手机操作逻辑） ========== */
+        /* 触屏设备：禁用仅 hover 的位移/倾斜，避免点击后「粘滞 hover」 */
+        @media (hover: none) {
+            .btn-primary:hover,
+            .btn-ghost:hover { transform: none; }
+            .nav-links a:hover { color: var(--text-2); background: transparent; }
+        }
+        /* 触摸按压反馈：跟手、轻微回弹 */
+        .btn:active { transform: scale(0.96); }
+        .theme-toggle:active,
+        .nav-toggle:active { transform: scale(0.92); }
+        .nav-links a:active,
+        .mobile-menu a:active { background: var(--panel); color: var(--text); }
+
+        /* ========== 响应式 ========== */
+        @media (max-width: 860px) {
+            .hero { grid-template-columns: 1fr; text-align: left; min-height: auto; padding-top: 48px; }
+        }
+        @media (max-width: 560px) {
+            :root { --nav-h: 60px; }
+            .nav-links { display: none; }
+            .nav-toggle { display: grid; }
+            .scroll-hint { display: none; }
+            /* 主行动按钮整行铺满，拇指好点 */
+            .cta { flex-direction: column; }
+            .cta .btn { width: 100%; justify-content: center; }
+            /* 页脚窄屏堆叠 */
+            .footer-inner { flex-direction: column; align-items: flex-start; gap: 18px; }
+            .contact { padding: clamp(32px, 8vw, 48px) 18px; }
+        }
+        @media (max-width: 420px) {
+            .hero { padding-top: 30px; }
+            .hero h1 { font-size: clamp(30px, 9vw, 42px); letter-spacing: -1px; }
+            .contact h2 { font-size: clamp(24px, 7vw, 34px); }
+            .f-brand p { font-size: 13px; }
+        }
+        /* 大于 560 时强制隐藏移动菜单（避免横屏/旋转后残留） */
+        @media (min-width: 561px) {
+            .mobile-menu { display: none !important; }
+        }
+
+        /* 本站点刻意不响应系统「减弱动效 (prefers-reduced-motion: reduce)」——
+           所有动画（背景流光、文字渐变流光、三体轨道旋转、Hero 入场、滚动揭示、
+           磁力按钮、光标光晕、平滑回到顶部）一律按设备是否支持 hover 决定是否运行，
+           忽略该无障碍偏好。此为站点所有者主动决定。 */
+    </style>
+    <script>
+        // 防首屏闪烁（FOUC）：在 <body> 解析前定好主题
+        (function () {
+            try {
+                var saved = localStorage.getItem('wj-theme');
+                var sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', saved || (sysDark ? 'dark' : 'light'));
+            } catch (e) {}
+        })();
+    </script>
+</head>
+<body>
+    <div class="bg-fx" aria-hidden="true"></div>
+    <div class="three-bg" aria-hidden="true">
+        <canvas class="orbit3d" id="threeBody"></canvas>
+    </div>
+    <div class="progress" id="progress"></div>
+    <div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
+
+    <!-- 导航 -->
+    <nav class="nav" id="nav">
+        <a class="brand" href="#top">
+            <span class="mark">无J</span>
+            <span>无极</span>
+        </a>
+        <div class="nav-links">
+            <a href="#top" class="active">首页</a>
+            <a href="#contact">联系</a>
+        </div>
+        <div class="nav-right">
+            <button class="nav-open" id="openBtn" type="button" title="开启 / 关闭首页三体太空音乐">开启 🎵</button>
+            <button class="theme-toggle" id="themeToggle" aria-label="切换主题" title="切换深浅色">🌙</button>
+            <button class="nav-toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false" aria-controls="mobileMenu">☰</button>
+        </div>
+    </nav>
+    <!-- 移动端下拉菜单 -->
+    <div class="mobile-menu" id="mobileMenu">
+        <a href="#top" class="active">首页</a>
+        <a href="#contact">联系</a>
+    </div>
+
+    <!-- Hero -->
+    <header class="wrap hero" id="top">
+        <div class="hero-copy">
+            <h1>你好，我是 <span class="grad">无极</span></h1>
+            <div class="cta">
+                <a class="btn btn-primary" href="#contact">联系我</a>
+            </div>
+        </div>
+        <a class="scroll-hint" href="#contact" aria-label="向下浏览">向下探索 <span>↓</span></a>
+    </header>
+
+    <!-- 联系 -->
+    <section class="wrap section-pad" id="contact">
+        <div class="contact reveal">
+            <h2>联系方式</h2>
+            <div class="cta">
+                <a class="btn btn-primary" href="https://github.com/wuji4301" target="_blank" rel="noopener">GitHub 主页</a>
+                <a class="btn btn-ghost" href="mailto:1415789411@qq.com">发邮件 · 主邮箱</a>
+                <a class="btn btn-ghost" href="mailto:q962464_0727@qq.com">备用邮箱</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="wrap footer-inner">
+            <div class="f-brand">
+                <a class="brand" href="#top">
+                    <span class="mark">无J</span>
+                    <span>无极</span>
+                </a>
+                <p>路在脚下</p>
+            </div>
+            <nav class="f-links" aria-label="页脚导航">
+                <a href="#top">首页</a>
+                <a href="#contact">联系</a>
+                <a href="https://github.com/wuji4301" target="_blank" rel="noopener">GitHub</a>
+            </nav>
+        </div>
+    </footer>
+
+    <!-- 回到顶部 -->
+    <button class="to-top" id="toTop" aria-label="返回顶部">↑</button>
+
+    <script>
+        // 主题切换：首屏主题已由 <head> 内联脚本定好，这里接管按钮与偏好
+        (function () {
+            var root = document.documentElement;
+            var btn = document.getElementById('themeToggle');
+            var mql = window.matchMedia('(prefers-color-scheme: dark)');
+            function apply(t) {
+                root.setAttribute('data-theme', t);
+                btn.textContent = t === 'dark' ? '🌙' : '☀️';
+            }
+            apply(root.getAttribute('data-theme') || 'dark'); // 同步按钮图标
+            btn.addEventListener('click', function () {
+                var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+                apply(next);
+                try { localStorage.setItem('wj-theme', next); } catch (e) {}
+            });
+            // 仅在用户未手动设定时跟随系统切换
+            mql.addEventListener('change', function (e) {
+                if (!localStorage.getItem('wj-theme')) apply(e.matches ? 'dark' : 'light');
+            });
+        })();
+
+        // 导航栏滚动描边（统一在 onScroll 中处理）
+        var nav = document.getElementById('nav');
+        var _docH = 0;   // 文档可滚动高度缓存（measureDoc 写入，syncContactActive 读取）
+
+        // 滚动揭示：单例 observer
+        var revealIO = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) {
+                if (e.isIntersecting) { e.target.classList.add('in'); revealIO.unobserve(e.target); }
+            });
+        }, { threshold: 0.12 });
+        function observeReveal(el) { revealIO.observe(el); }
+        document.querySelectorAll('.reveal').forEach(observeReveal);
+
+        // 导航高亮（桌面链接 + 移动菜单同步）
+        var sections = ['top', 'contact'].map(function (id) { return document.getElementById(id); });
+        var links = document.querySelectorAll('.nav-links a, .mobile-menu a');
+        // 统一设置当前高亮项：spy 与末屏兜底共用，去掉重复循环
+        function setActive(id) {
+            links.forEach(function (l) {
+                var on = l.getAttribute('href') === '#' + id;
+                l.classList.toggle('active', on);
+                if (on) { l.setAttribute('aria-current', 'page'); }
+                else { l.removeAttribute('aria-current'); }
+            });
+        }
+        var spy = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) {
+                if (e.isIntersecting) setActive(e.target.id);
+            });
+        }, { rootMargin: '-45% 0px -50% 0px' });
+        sections.forEach(function (s) { if (s) spy.observe(s); });
+
+        // 末屏兜底：滚到页面底部时高亮「联系」（最后一个区块太矮，进不了判定带）
+        function syncContactActive() {
+            if (window.scrollY >= _docH - 4) setActive('contact');
+        }
+        // 「联系」兜底高亮交由统一 onScroll 调度
+
+        // 移动端汉堡菜单
+        var navToggle = document.getElementById('navToggle');
+        var mobileMenu = document.getElementById('mobileMenu');
+        function setMenu(open) {
+            mobileMenu.classList.toggle('open', open);
+            navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            navToggle.setAttribute('aria-label', open ? '关闭菜单' : '打开菜单');
+            navToggle.textContent = open ? '✕' : '☰';
+        }
+        navToggle.addEventListener('click', function () {
+            setMenu(!mobileMenu.classList.contains('open'));
+        });
+        mobileMenu.querySelectorAll('a').forEach(function (a) {
+            a.addEventListener('click', function () { setMenu(false); });
+        });
+        document.addEventListener('click', function (e) {
+            if (mobileMenu.classList.contains('open') &&
+                !mobileMenu.contains(e.target) && !navToggle.contains(e.target)) {
+                setMenu(false);
+            }
+        });
+
+        // 滚动进度条（页面高度缓存：静态页只在 resize/load 后重测，滚动帧内不再触发强制布局）
+        var progressEl = document.getElementById('progress');
+        function measureDoc() { _docH = document.documentElement.scrollHeight - window.innerHeight; }
+        window.addEventListener('resize', measureDoc);
+        window.addEventListener('load', measureDoc);
+        measureDoc();
+        function updateProgress() {
+            progressEl.style.width = (_docH > 0 ? (window.scrollY / _docH) * 100 : 0) + '%';
+        }
+
+        // 光标光晕 + 按钮磁力：强制开启，忽略系统「减弱动效」偏好
+        // 仅由设备是否支持 hover 决定（触屏不跑，避免按钮漂移），不再受 reduceMotion 影响
+        var canHover = window.matchMedia('(hover: hover)').matches;
+        var cursorGlow = document.getElementById('cursorGlow');
+        if (canHover) {
+            window.addEventListener('pointermove', function (e) {
+                cursorGlow.style.transform = 'translate3d(' + e.clientX + 'px,' + e.clientY + 'px,0)';
+            }, { passive: true });
+
+            // 按钮磁力 + 接近感应（连续 lerp 缓动，软跟随，不靠 CSS transition 重启）
+            //  ① 光标进入半径（尚未触碰）→ 按钮轻轻迎向光标
+            //  ② 进入按钮内 → 彻底跟手
+            //  ③ 离开/远离 → 缓动归位
+            var magEls = Array.prototype.slice.call(document.querySelectorAll('.btn, .theme-toggle'));
+            var RADIUS = 180;       // 接近感应半径(px)
+            var MAX_PULL = 10;      // 接近时最大迎向位移(px)
+            var SPEED = 60;         // 光标跟随：px/秒，线性匀速
+            var LIFT_DUR = 0.55;    // 弹起时长(秒)：ease-out 缓动，越大越慢越柔
+            var SPEED_S = 0.5;      // scale：每秒变化量
+            var easeOut = function (t) { return 1 - Math.pow(1 - t, 3); }; // easeOutCubic
+            magEls.forEach(function (el) {
+                // transform 由 rAF 逐帧缓动接管，去掉 transition 里的 transform，避免双重缓动打架
+                el.style.transition = 'box-shadow 0.4s ease, background 0.35s ease, border-color 0.35s ease, color 0.35s ease';
+                el._x = 0; el._y = 0; el._plift = 0; el._s = 1;
+                el._tx = 0; el._ty = 0; el._ts = 1;
+                el._liftP = 0; el._liftFrom = 0; el._liftTo = 0; el._liftT0 = 0; // 弹起缓动进度
+                el._inside = false;
+                var s = el.classList.contains('theme-toggle') ? 0.18 : 0.3;
+                el.addEventListener('pointerenter', function () {
+                    el._inside = true; el._plift = 0;
+                    el._liftFrom = el._liftP; el._liftTo = 1; el._liftT0 = performance.now();
+                });
+                el.addEventListener('pointermove', function (e) {
+                    if (!el._inside) return;
+                    var r = el.getBoundingClientRect();
+                    el._tx = (e.clientX - (r.left + r.width / 2)) * s;   // 跟随光标横向
+                    el._ty = (e.clientY - (r.top + r.height / 2)) * s;  // 跟随光标纵向
+                    el._ts = 1.03;
+                });
+                el.addEventListener('pointerleave', function () {
+                    el._inside = false; el._tx = 0; el._ty = 0; el._ts = 1;
+                    el._liftFrom = el._liftP; el._liftTo = 0; el._liftT0 = performance.now();
+                });
+            });
+
+            var pmx = 0, pmy = 0, lastPointerMove = -1e9;
+            window.addEventListener('pointermove', function (e) {
+                pmx = e.clientX; pmy = e.clientY;
+                lastPointerMove = performance.now();
+                if (!running) wake();
+            }, { passive: true });
+
+            // 布局矩形缓存：滚动/缩放时才失效。原来指针每动一帧就对每个按钮
+            // getBoundingClientRect（强制布局读取），现在稳态指针移动 0 次布局读取
+            function clearMagRects() { for (var i = 0; i < magEls.length; i++) magEls[i]._rect = null; }
+            window.addEventListener('scroll', clearMagRects, { passive: true });
+            window.addEventListener('resize', clearMagRects);
+
+            // 空闲休眠：指针静止且所有元素已归位时停止 rAF，降低空闲 CPU
+            var running = false, rafId = 0;
+            function wake() {
+                if (running) return;
+                running = true; last = 0;
+                rafId = requestAnimationFrame(tick);
+            }
+
+            // 跟随用基于时间的匀速（刷新率无关）；弹起用 ease-out 缓动（有"落位"的动画感）
+            var last = 0;
+            function tick(now) {
+                if (!last) last = now;
+                var dt = (now - last) / 1000;
+                last = now;
+                if (dt > 0.05) dt = 0.05;            // 卡顿/切后台时钳制，避免跳变
+                var stepF = SPEED * dt;              // 本帧跟随步长
+                var stepS = SPEED_S * dt;            // 本帧 scale 步长
+                for (var i = 0; i < magEls.length; i++) {
+                    var el = magEls[i];
+                    // 弹起缓动（ease-out）：不再匀速机械，有减速落位感
+                    if (el._liftP !== el._liftTo) {
+                        var lt = (now - el._liftT0) / 1000 / LIFT_DUR;
+                        if (lt >= 1) { el._liftP = el._liftTo; }
+                        else { el._liftP = el._liftFrom + (el._liftTo - el._liftFrom) * easeOut(lt); }
+                    }
+                    if (!el._inside) {
+                        var r = el._rect || (el._rect = el.getBoundingClientRect());
+                        var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+                        var dx = pmx - cx, dy = pmy - cy;
+                        var dist = Math.hypot(dx, dy);
+                        var edge = dist - Math.hypot(r.width / 2, r.height / 2); // 到边缘的最近距离
+                        if (edge < RADIUS && edge > -24 && dist > 0.001) {
+                            var t = Math.max(0, 1 - Math.max(0, edge) / RADIUS); // 0→1 越近越强
+                            var pull = t * MAX_PULL * 0.6;
+                            el._tx = dx / dist * pull;   // 迎向光标
+                            el._ty = dy / dist * pull;
+                            el._plift = -2 * t;          // 靠近时轻微弹起
+                            el._ts = 1 + 0.02 * t;
+                        } else { el._tx = 0; el._ty = 0; el._plift = 0; el._ts = 1; }
+                    }
+                    // 光标跟随：线性匀速（按 dt 缩放，刷新率无关）
+                    var ddx = el._tx - el._x, ddy = el._ty - el._y;
+                    var dd = Math.hypot(ddx, ddy);
+                    if (dd <= stepF) { el._x = el._tx; el._y = el._ty; }
+                    else { el._x += ddx / dd * stepF; el._y += ddy / dd * stepF; }
+                    // scale：线性
+                    var ds = el._ts - el._s;
+                    if (Math.abs(ds) <= stepS) { el._s = el._ts; }
+                    else { el._s += (ds > 0 ? 1 : -1) * stepS; }
+                    var totalLift = -3 * el._liftP + el._plift;
+                    if (el._x === 0 && el._y === 0 && el._liftP === 0 && el._plift === 0 && el._s === 1) {
+                        el.style.transform = '';
+                    } else {
+                        el.style.transform = 'translate(' + el._x.toFixed(2) + 'px,' + (el._y + totalLift).toFixed(2) + 'px) scale(' + el._s.toFixed(3) + ')';
+                    }
+                }
+                // 指针刚动过 → 继续；否则判断是否都已归位，可休眠
+                var active = (now - lastPointerMove) < 120;
+                if (!active) {
+                    for (var k = 0; k < magEls.length; k++) {
+                        var m = magEls[k];
+                        if (m._x !== m._tx || m._y !== m._ty || m._s !== m._ts || m._liftP !== m._liftTo) { active = true; break; }
+                    }
+                }
+                if (active) { rafId = requestAnimationFrame(tick); }
+                else { running = false; }
+            }
+            wake();
+        }
+
+        // 回到顶部按钮：滚动一定距离后浮现（统一在 onScroll 中处理）
+        var toTop = document.getElementById('toTop');
+        // 回到顶部：加速（ease-in）滚动——先慢后快，越接近顶部越快
+        function scrollToTopLinear() {
+            var startY = window.scrollY;
+            if (startY <= 0) return;
+            var dur = Math.min(900, Math.max(300, startY * 0.4)); // 距离越远略久，但有界（短页 300ms、长页封顶 900ms）
+            var startTime = null;
+            function step(now) {
+                if (startTime === null) startTime = now;
+                var t = Math.min((now - startTime) / dur, 1);
+                var eased = t * t; // ease-in：进度先慢后快，呈现加速上滑
+                // 强制 behavior:'instant' 瞬时定位：'auto' 会继承 html{scroll-behavior:smooth}，
+                // 导致每帧又被平滑化一次，加速节奏被覆盖、看起来仍是一瞬到顶
+                window.scrollTo({ top: startY * (1 - eased), left: 0, behavior: 'instant' });
+                if (t < 1) requestAnimationFrame(step);
+            }
+            requestAnimationFrame(step);
+        }
+        toTop.addEventListener('click', function () {
+            scrollToTopLinear();
+        });
+
+        // 统一滚动处理（rAF 节流：单次滚动只触发一帧，合并描边/进度/回到顶部/导航高亮）
+        var _ticking = false;
+        function onScroll() {
+            if (_ticking) return;
+            _ticking = true;
+            requestAnimationFrame(function () {
+                var y = window.scrollY;
+                nav.classList.toggle('scrolled', y > 12);
+                toTop.classList.toggle('show', y > 600);
+                updateProgress();
+                syncContactActive();
+                _ticking = false;
+            });
+        }
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+
+        // ========== 三体运动（真实牛顿引力 · 混沌模拟 · 3D） ==========
+        // 随机初始条件 + 牛顿引力实时积分（verlet）。对初值极度敏感，轨迹不可预测，
+        // 每次刷新都是不同的"宇宙"；不周期性重播种（连续演化），仅数值发散时兜底重置。
+        // 3D 呈现：轨道为真正的三维缠绕（位置/速度均三维随机）+ 带倾角环绕相机 + 深度视差星空
+        // + 近大远小透视 + 球体高光。带拖尾与引力三角网。
+        (function () {
+            var canvas = document.getElementById('threeBody');
+            if (!canvas) return;
+            var ctx = canvas.getContext('2d');
+            var host = canvas.parentElement;
+            // 画质档位 0/1/2：0=省电（弱机/低内存），1=均衡（触屏/手机），2=全效（桌面）
+            var _coarse = window.matchMedia('(pointer: coarse)').matches;
+            var _cores = navigator.hardwareConcurrency || 8;
+            var _mem = navigator.deviceMemory || 8;
+            var tier = (_cores <= 4 || _mem <= 4) ? 0 : (_coarse ? 1 : 2);
+            // 渲染像素上限按档位收紧：高 DPR 屏（手机 3x / Retina 2x）若把 devicePixelRatio
+            // 直接当渲染倍率，每帧画布面积会暴增 4~9 倍。canvas 只是内容之下的装饰层，
+            // 分辨率略降（星点是低频小光点）肉眼无差，却可省下大量 GPU 带宽 / 显存 / 耗电。
+            var DPR_CAP = [1.25, 1.5, 1.75][tier];
+            var dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
+            var FRAME_MS = tier === 0 ? 41 : 33; // ~24fps（弱机）/ ~30fps（常规）装饰帧率
+            var STAR_SCALE = tier === 0 ? 0.6 : 1; // 弱机再降 40% 星点密度（省逐帧绘制量）
+            var W = 0, H = 0;
+            function resize() {
+                W = window.innerWidth;
+                H = window.innerHeight;
+                canvas.width = Math.round(W * dpr);
+                canvas.height = Math.round(H * dpr);
+                canvas.style.width = W + 'px';
+                canvas.style.height = H + 'px';
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                stars = makeStars(); // 按当前视口面积重算星点密度（无限视差星场）
+            }
+            resize();
+            // 移动端地址栏收起/展开也会触发 resize（高度小幅抖动），逐次重建画布+星场
+            // 代价高且星空会闪跳；去抖 120ms，只响应「真正的」尺寸变化
+            var rsTimer = 0;
+            window.addEventListener('resize', function () {
+                clearTimeout(rsTimer);
+                rsTimer = setTimeout(resize, 120);
+            });
+
+            var colors = ['#8b6dff', '#5ad1ff', '#ff6fb0']; // accent / accent-2 / accent-3
+            var G = 1, SOFT = 0.1, SUB_H = 0.004, SPEED = 0.3, TRAIL = 120;
+            var bodies = [], trail = [[], [], []], stars = [];
+            // 真正的混沌三体：随机初始条件 + 牛顿引力实时积分
+            // （不再使用稳定的 8 字周期解——那只是"看起来像"三体，其实是确定的循环）
+            // 背景星空：充满整个运动空间的固定"星点"，与三体同坐标系、同相机旋转，
+            // 随视角转动产生运动视差 —— 这是 3D 感的重要参照物（近点漂移快、远点漂移慢）。
+            // 背景星空：以屏幕为"虚拟瓦片"无缝平铺的【无限】视差星场。
+            // 星点用归一化坐标 (x,y∈[0,1) 落在略大于视口的瓦片内)，随相机偏航/俯仰漂移并对瓦片尺寸取模回绕
+            // → 永远填满视口、永不到边、永不枯竭（即"无限"）；depth 越大 → 漂移越快、越大越亮（纵深视差）。
+            function makeStars() {
+                var N = Math.max(220, Math.min(520, Math.round(W * H / 9000))); // 按屏幕面积自适应密度
+                var arr = [];
+                for (var i = 0; i < N; i++) {
+                    arr.push({
+                        x: Math.random(),                 // 瓦片内归一化横向位置 [0,1)
+                        y: Math.random(),                 // 瓦片内归一化纵向位置 [0,1)
+                        depth: Math.random(),             // 0(远)→1(近)：决定视差速度/大小/亮度
+                        tw0: Math.random() * 6.2832,      // 闪烁相位
+                        tws: 0.3 + Math.random() * 0.8,   // 闪烁速度
+                        sz: 0.5 + Math.random() * 1.4     // 星点基础大小
+                    });
+                }
+                return arr;
+            }
+            function seed() {
+                bodies = [];
+                for (var i = 0; i < 3; i++) {
+                    // 三维球分布：位置与速度均取三维随机方向 → 轨道真正脱离单一平面，
+                    // 三体在空间里互相缠绕，环绕视角下可清楚看到深度层次
+                    var rad = 0.35 + Math.random() * 0.75;
+                    var th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+                    var sp = 0.25 + Math.random() * 0.45;
+                    var vth = Math.random() * Math.PI * 2, vph = Math.acos(2 * Math.random() - 1);
+                    bodies.push({
+                        x: Math.cos(th) * Math.sin(ph) * rad,
+                        y: Math.sin(th) * Math.sin(ph) * rad,
+                        z: Math.cos(ph) * rad,
+                        vx: Math.cos(vth) * Math.sin(vph) * sp,
+                        vy: Math.sin(vth) * Math.sin(vph) * sp,
+                        vz: Math.cos(vph) * sp,
+                        m: 0.8 + Math.random() * 0.5, c: colors[i]
+                    });
+                }
+                // 消去总动量，避免整体漂移；质心留在原点附近
+                var px = 0, py = 0, pz = 0, M = 0;
+                for (var i = 0; i < 3; i++) { px += bodies[i].m * bodies[i].vx; py += bodies[i].m * bodies[i].vy; pz += bodies[i].m * bodies[i].vz; M += bodies[i].m; }
+                for (var i = 0; i < 3; i++) { bodies[i].vx -= px / M; bodies[i].vy -= py / M; bodies[i].vz -= pz / M; }
+                trail = [[], [], []];
+                stars = makeStars();
+            }
+            seed();
+
+            function accel() {
+                var a = [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }];
+                for (var i = 0; i < 3; i++) {
+                    for (var j = 0; j < 3; j++) {
+                        if (i === j) continue;
+                        var dx = bodies[j].x - bodies[i].x,
+                            dy = bodies[j].y - bodies[i].y,
+                            dz = bodies[j].z - bodies[i].z;
+                        var d2 = dx * dx + dy * dy + dz * dz + SOFT * SOFT;
+                        var inv = 1 / Math.sqrt(d2);
+                        var f = G * bodies[j].m * inv * inv * inv; // G*m/d^3（含软化，避免近距离奇点）
+                        a[i].x += f * dx; a[i].y += f * dy; a[i].z += f * dz;
+                    }
+                }
+                return a;
+            }
+            function verlet(h) {
+                var a0 = accel();
+                for (var i = 0; i < 3; i++) {
+                    bodies[i].x += bodies[i].vx * h + 0.5 * a0[i].x * h * h;
+                    bodies[i].y += bodies[i].vy * h + 0.5 * a0[i].y * h * h;
+                    bodies[i].z += bodies[i].vz * h + 0.5 * a0[i].z * h * h;
+                }
+                var a1 = accel();
+                for (var i = 0; i < 3; i++) {
+                    bodies[i].vx += 0.5 * (a0[i].x + a1[i].x) * h;
+                    bodies[i].vy += 0.5 * (a0[i].y + a1[i].y) * h;
+                    bodies[i].vz += 0.5 * (a0[i].z + a1[i].z) * h;
+                }
+            }
+            // 颜色字符串缓存：alpha 量化到 1/32 后按 key 缓存。拖尾/星点每帧原本要
+            // 新建几百个临时 rgba 字符串（GC 压力大），量化后视觉差异不可感知
+            var _colCache = {};
+            function hexA(hex, a) {
+                var q = Math.max(0, Math.round(a * 32) / 32);
+                var key = hex + q, s = _colCache[key];
+                if (s === undefined) {
+                    var n = parseInt(hex.slice(1), 16);
+                    s = 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + q + ')';
+                    _colCache[key] = s;
+                }
+                return s;
+            }
+            var _whiteCache = [];
+            function whiteA(a) {
+                var q = Math.max(0, Math.min(1, Math.round(a * 24) / 24));
+                var s = _whiteCache[q];
+                if (s === undefined) { s = _whiteCache[q] = 'rgba(255,255,255,' + q + ')'; }
+                return s;
+            }
+
+            var simTime = 0, last = 0, rafOn = false, visible = true;
+            // FRAME_MS 已在 IIFE 顶部按画质档位定好（24~30fps 装饰帧率）
+            function step(now) {
+                if (!visible) { rafOn = false; return; }
+                requestAnimationFrame(step);
+                if (!last) last = now;
+                var elapsed = now - last;
+                var target = FRAME_MS;
+                if (elapsed < target) return; // 未到目标帧：仅排队，跳过本轮计算与绘制
+                var rdt = Math.min(elapsed / 1000, 0.05); last = now;
+                var adv = SPEED * rdt;
+                // 自适应子步：近距离遭遇时引力极强，固定步长会注入能量→数值发散(花屏)。
+                // 按当前最大加速度估算安全步长，暴力接近时自动细分，避免 NaN/Infinity。
+                var a0 = accel();
+                var maxA = 0;
+                for (var i = 0; i < 3; i++) {
+                    var am = Math.sqrt(a0[i].x * a0[i].x + a0[i].y * a0[i].y + a0[i].z * a0[i].z);
+                    if (am > maxA) maxA = am;
+                }
+                var h = Math.min(SUB_H, 0.06 / Math.sqrt(maxA + 1e-6));
+                var n = Math.max(1, Math.ceil(adv / h));
+                if (n > 1500) { n = 1500; h = adv / n; } // 极端情况限幅，避免卡死
+                for (var s = 0; s < n; s++) { verlet(h); simTime += h; }
+                // 数值兜底：若仍发散成非有限值（极罕见），重置宇宙以免永久花屏（非周期性重启）
+                for (var i = 0; i < 3; i++) {
+                    var bd = bodies[i];
+                    if (!isFinite(bd.x) || !isFinite(bd.y) || !isFinite(bd.z) ||
+                        !isFinite(bd.vx) || !isFinite(bd.vy) || !isFinite(bd.vz)) { seed(); break; }
+                }
+                draw();
+                updateAudio();
+                if (audioReady && musicOn && now - pluckT > 6000) { pluckT = now; pluck(curFreq[Math.floor(Math.random() * 3)]); }
+            }
+
+            var fitScale = Math.min(W, H) * 0.24; // 自适应缩放（平滑跟随，避免天体被甩出画面）
+            var Rsmooth = 1;          // 平滑后的包围半径（消除相机距离/缩放随单帧 R 跳变 → 画面抖动）
+            var _tx = [], _ty = [], _tp = []; // 拖尾重投影复用缓冲（免每帧数百个临时对象）
+            function draw() {
+                ctx.clearRect(0, 0, W, H);
+                // 质心回正：消去整体漂移，让三体始终居中
+                var cx = 0, cy = 0, cz = 0;
+                for (var i = 0; i < 3; i++) { cx += bodies[i].x; cy += bodies[i].y; cz += bodies[i].z; }
+                cx /= 3; cy /= 3; cz /= 3;
+                // 自适应缩放（甩飞时缩小跟随，不重播种，连续演化）
+                var R = 0;
+                for (var i = 0; i < 3; i++) {
+                    var d = Math.hypot(bodies[i].x - cx, bodies[i].y - cy, bodies[i].z - cz);
+                    if (d > R) R = d;
+                }
+                Rsmooth += (R - Rsmooth) * 0.06; // 平滑包围半径，避免 camZ/缩放随单帧 R 跳变 → 画面抖动
+                var Rfit = Math.min(Rsmooth, 7); // 限制缩放下限：被甩飞的天体可飘出画面，但避免整体缩成一点
+                var targetS = (Math.min(W, H) * 0.42) / Math.max(Rfit * 1.2, 0.6);
+                fitScale += (targetS - fitScale) * 0.06;
+
+                // 相机：固定俯仰倾角（把 z 轴差异直接映射成画面上的上下错位 → 立体感），
+                // 缓慢环绕。俯仰/相机距离均已平滑，画面稳定无抖动。
+                var ax = 0.62, ay = simTime * 0.28;
+                var cyr = Math.cos(ay), syr = Math.sin(ay), cxr = Math.cos(ax), sxr = Math.sin(ax);
+                var camZ = Math.max(2.4, Rsmooth * 1.5), S = fitScale;
+                var proj = [];
+                for (var i = 0; i < 3; i++) {
+                    var b = bodies[i];
+                    var rx = b.x - cx, ry = b.y - cy, rz = b.z - cz;
+                    // 绕 Y 轴旋转
+                    var x1 = rx * cyr + rz * syr, z1 = -rx * syr + rz * cyr, y1 = ry;
+                    // 绕 X 轴旋转
+                    var y2 = y1 * cxr - z1 * sxr, z2 = y1 * sxr + z1 * cxr, x2 = x1;
+                    var persp = camZ / (camZ - z2);
+                    proj.push({
+                        x: W / 2 + x2 * S * persp,
+                        y: H / 2 + y2 * S * persp,
+                        r: Math.max(2, S * 0.05 * persp),
+                        depth: z2, c: b.c, rx: rx, ry: ry, rz: rz
+                    });
+                }
+                // 拖尾（存世界坐标，每帧随场景重投影 → 长拖尾不糊、呈真实轨道弧线）
+                for (var i = 0; i < 3; i++) {
+                    trail[i].push({ x: proj[i].rx, y: proj[i].ry, z: proj[i].rz });
+                    if (trail[i].length > TRAIL) trail[i].shift();
+                }
+                ctx.globalCompositeOperation = 'lighter';
+                // 背景星空（无限视差）：以略大于视口的"瓦片"无缝平铺，星点随相机偏航(ay)/俯仰(ax)漂移
+                // 并对瓦片尺寸取模回绕 → 永远填满视口、永不到边、永不枯竭（真正的无限星场）；
+                // depth 越大漂移越快、越大越亮，制造纵深视差感。
+                var bobY = Math.sin(simTime * 0.13) * 0.6;        // 缓慢竖向浮动，纵深呼吸感
+                var tileW = W * 1.25, tileH = H * 1.25;           // 瓦片略大于视口，避免边缘露白
+                var mW = (tileW - W) / 2, mH = (tileH - H) / 2;
+                for (var s = 0; s < stars.length; s++) {
+                    var st = stars[s];
+                    var par = 0.25 + 0.85 * st.depth;             // 视差系数（近快远慢）
+                    // 漂移后取模回绕（ay/ax 持续增大也无妨，取模保证落在瓦片内 → 永不到边）
+                    var dx = (((st.x * tileW + ay * 60 * par) % tileW) + tileW) % tileW;
+                    var dy = (((st.y * tileH + (bobY + ax) * 60 * par) % tileH) + tileH) % tileH;
+                    var sx = dx - mW, sy = dy - mH;
+                    var twk = 0.35 + 0.35 * Math.sin(simTime * st.tws + st.tw0); // 缓慢闪烁
+                    // 星点直径普遍 < 4px：矩形近似圆点肉眼无差，fillRect 远快于逐点 arc 路径
+                    var sr2 = st.sz * (0.6 + 0.7 * st.depth);
+                    ctx.fillStyle = whiteA(twk * (0.25 + 0.6 * st.depth));
+                    ctx.fillRect(sx - sr2, sy - sr2, sr2 * 2, sr2 * 2);
+                }
+                // 拖尾绘制：先把整条拖尾重投影进复用数组（原实现每段分配 2 个临时对象，
+                // 每帧约 720 个 → 0 个），再逐段描边；颜色字符串走 hexA 缓存
+                for (var i = 0; i < 3; i++) {
+                    var tp = trail[i], tn = tp.length;
+                    while (_tx.length < tn) { _tx.push(0); _ty.push(0); _tp.push(0); }
+                    for (var t = 0; t < tn; t++) {
+                        var p = tp[t];
+                        var x1 = p.x * cyr + p.z * syr, z1 = -p.x * syr + p.z * cyr, y1 = p.y;
+                        var y2 = y1 * cxr - z1 * sxr, z2 = y1 * sxr + z1 * cxr;
+                        var pp = camZ / (camZ - z2);
+                        _tx[t] = W / 2 + x1 * S * pp; _ty[t] = H / 2 + y2 * S * pp; _tp[t] = pp;
+                    }
+                    for (var t = 1; t < tn; t++) {
+                        var a = (t / tn) * 0.5;
+                        // 拖尾按深度调制：近处粗亮、远处细暗，强化纵深
+                        var dep = Math.max(0.45, Math.min(1.6, 0.45 * (_tp[t - 1] + _tp[t])));
+                        ctx.strokeStyle = hexA(bodies[i].c, a * 0.5 * dep);
+                        ctx.lineWidth = Math.max(1, proj[i].r * 0.5 * (t / tn) * dep);
+                        ctx.beginPath();
+                        ctx.moveTo(_tx[t - 1], _ty[t - 1]);
+                        ctx.lineTo(_tx[t], _ty[t]);
+                        ctx.stroke();
+                    }
+                }
+                // 引力三角网（淡）
+                ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(proj[0].x, proj[0].y);
+                ctx.lineTo(proj[1].x, proj[1].y);
+                ctx.lineTo(proj[2].x, proj[2].y);
+                ctx.closePath();
+                ctx.stroke();
+                // 天体按深度分远/近两组（以过质心 z=0 平面为界）：远的先画，近的后画。
+                var farIdx = [], nearIdx = [];
+                for (var i = 0; i < 3; i++) { (proj[i].depth < 0 ? farIdx : nearIdx).push(i); }
+                farIdx.sort(function (a, b) { return proj[a].depth - proj[b].depth; });
+                nearIdx.sort(function (a, b) { return proj[a].depth - proj[b].depth; });
+                function drawBody(p) {
+                    var g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 2.4);
+                    g.addColorStop(0, hexA(p.c, 0.95));
+                    g.addColorStop(0.35, hexA(p.c, 0.5));
+                    g.addColorStop(1, hexA(p.c, 0));
+                    ctx.fillStyle = g;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.r * 2.4, 0, 6.2832);
+                    ctx.fill();
+                    ctx.fillStyle = hexA(p.c, 0.95);
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.r * 0.55, 0, 6.2832);
+                    ctx.fill();
+                    // 高光：模拟左上受光 → 球体感（不是扁平圆点）
+                    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+                    ctx.beginPath();
+                    ctx.arc(p.x - p.r * 0.22, p.y - p.r * 0.22, p.r * 0.16, 0, 6.2832);
+                    ctx.fill();
+                }
+                for (var f = 0; f < farIdx.length; f++) drawBody(proj[farIdx[f]]);
+                for (var n = 0; n < nearIdx.length; n++) drawBody(proj[nearIdx[n]]);
+            }
+
+            /* ===================== 音频：Hero 三体 → 太空纯音乐 ===================== */
+            // 复用同一套混沌三体状态：距离→和弦、水平位置→声像、速度→亮度、
+            // 近距离遭遇→铃声、能量→整体响度。点右上角「开启」即出声。
+            var SCALES = {
+                Lydian: [0, 2, 4, 6, 7, 9, 11], MajorPenta: [0, 2, 4, 7, 9],
+                MinorPenta: [0, 3, 5, 7, 10], WholeTone: [0, 2, 4, 6, 8, 10],
+                Aeolian: [0, 2, 3, 5, 7, 8, 10]
+            };
+            var NOTE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            function noteName(f) { var n = Math.round(12 * Math.log2(f / 440)) + 69; return NOTE[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1); }
+            var actx = null, master = null, reverb = null, wet = null, dry = null,
+                voices = [], audioReady = false, musicOn = false, lastBell = 0, pluckT = 0;
+            var ROOT = 110, scaleName = 'Lydian', vol = 0.55, curFreq = [ROOT * 2, ROOT * 4, ROOT * 8];
+
+            function makeReverb(ac, sec, decay) {
+                var rate = ac.sampleRate, len = Math.floor(rate * sec);
+                var buf = ac.createBuffer(2, len, rate);
+                for (var ch = 0; ch < 2; ch++) {
+                    var d = buf.getChannelData(ch);
+                    for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+                }
+                var c = ac.createConvolver(); c.buffer = buf; return c;
+            }
+            function makeVoice(ac, dest) {
+                var o1 = ac.createOscillator(); o1.type = 'sine';
+                var o2 = ac.createOscillator(); o2.type = 'triangle'; o2.detune.value = 4;
+                var filt = ac.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 420; filt.Q.value = 0.4;
+                var g = ac.createGain(); g.gain.value = 0;
+                var pan = ac.createStereoPanner ? ac.createStereoPanner() : null;
+                o1.connect(filt); o2.connect(filt); filt.connect(g);
+                if (pan) { g.connect(pan); pan.connect(dest); } else { g.connect(dest); }
+                o1.start(); o2.start();
+                return { o1: o1, o2: o2, filt: filt, g: g, pan: pan };
+            }
+            function makeNoisePad(ac, dest) {
+                var len = ac.sampleRate * 3, buf = ac.createBuffer(1, len, ac.sampleRate);
+                var d = buf.getChannelData(0);
+                for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
+                var src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+                var bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 440; bp.Q.value = 0.6;
+                var g = ac.createGain(); g.gain.value = 0.025;
+                var lfo = ac.createOscillator(); lfo.frequency.value = 0.05;
+                var lg = ac.createGain(); lg.gain.value = 70;
+                lfo.connect(lg); lg.connect(bp.frequency);
+                src.connect(bp); bp.connect(g); g.connect(dest);
+                src.start(); lfo.start();
+            }
+            function initAudio() {
+                if (audioReady) return;
+                actx = new (window.AudioContext || window.webkitAudioContext)();
+                master = actx.createGain(); master.gain.value = 0; // 起始静音，开启后淡入
+                reverb = makeReverb(actx, 6, 3.0);
+                wet = actx.createGain(); wet.gain.value = 0.62;
+                dry = actx.createGain(); dry.gain.value = 0.6;
+                master.connect(dry); dry.connect(actx.destination);
+                master.connect(reverb); reverb.connect(wet); wet.connect(actx.destination);
+                for (var i = 0; i < 3; i++) voices.push(makeVoice(actx, master));
+                makeNoisePad(actx, master);
+                var rd = actx.createOscillator(); rd.type = 'sine'; rd.frequency.value = ROOT;
+                var rg = actx.createGain(); rg.gain.value = 0.06; rd.connect(rg); rg.connect(master); rd.start();
+                audioReady = true;
+            }
+            function scaleFreq(name, deg) {
+                var s = SCALES[name], n = s.length;
+                var oct = Math.floor(deg / n), idx = ((deg % n) + n) % n;
+                return ROOT * Math.pow(2, (s[idx] + 12 * oct) / 12);
+            }
+            function bell(f) {
+                if (!audioReady || !musicOn) return;
+                var t = actx.currentTime;
+                var o = actx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+                var o2 = actx.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 2.01;
+                var g = actx.createGain();
+                g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.22, t + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + 3.0);
+                var g2 = actx.createGain(); g2.gain.value = 0.1;
+                o.connect(g); o2.connect(g2); g2.connect(g); g.connect(master);
+                o.start(t); o2.start(t); o.stop(t + 3.1); o2.stop(t + 3.1);
+            }
+            function pluck(f) {
+                if (!audioReady || !musicOn) return;
+                var t = actx.currentTime;
+                var o = actx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+                var g = actx.createGain();
+                g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.10, t + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+                o.connect(g); g.connect(master); o.start(t); o.stop(t + 1.9);
+            }
+            function updateAudio() {
+                if (!audioReady) return;
+                var now = actx.currentTime;
+                var cx = 0, cy = 0, cz = 0;
+                for (var i = 0; i < 3; i++) { cx += bodies[i].x; cy += bodies[i].y; cz += bodies[i].z; }
+                cx /= 3; cy /= 3; cz /= 3;
+                var sLen = SCALES[scaleName].length, reg = [1, 2, 3], ke = 0;
+                for (var i = 0; i < 3; i++) {
+                    var b = bodies[i];
+                    var rx = b.x - cx, ry = b.y - cy, rz = b.z - cz;
+                    var r = Math.sqrt(rx * rx + ry * ry + rz * rz);
+                    var t = Math.max(0, Math.min(1, (r - 0.2) / 2.3));
+                    var deg = reg[i] * sLen + Math.round(t * (sLen - 1));
+                    var f = scaleFreq(scaleName, deg); curFreq[i] = f;
+                    var v = voices[i];
+                    v.o1.frequency.setTargetAtTime(f, now, 0.18);
+                    v.o2.frequency.setTargetAtTime(f, now, 0.18);
+                    if (v.pan) v.pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, rx * 1.2)), now, 0.15);
+                    var sp = Math.sqrt(b.vx * b.vx + b.vy * b.vy + b.vz * b.vz);
+                    ke += 0.5 * b.m * sp * sp;
+                    v.filt.frequency.setTargetAtTime(320 + Math.min(sp, 1.6) * 900, now, 0.25);
+                    v.g.gain.setTargetAtTime(musicOn ? 0.085 : 0, now, 0.4);
+                }
+                var intensity = Math.max(0, Math.min(1.6, ke / 1.2));
+                master.gain.setTargetAtTime(musicOn ? vol * (0.7 + 0.3 * Math.min(intensity, 1)) : 0, now, 0.5);
+                var minD = 1e9;
+                for (var i = 0; i < 3; i++) for (var j = i + 1; j < 3; j++) {
+                    var dx = bodies[j].x - bodies[i].x, dy = bodies[j].y - bodies[i].y, dz = bodies[j].z - bodies[i].z;
+                    var d = Math.sqrt(dx * dx + dy * dy + dz * dz); if (d < minD) minD = d;
+                }
+                if (musicOn && minD < 0.35 && now - lastBell > 1.2) {
+                    lastBell = now; bell(scaleFreq(scaleName, 3 * sLen + Math.floor(Math.random() * sLen)));
+                }
+                return { intensity: intensity, minD: minD };
+            }
+            (function wireOpen() {
+                var ob = document.getElementById('openBtn');
+                if (!ob) return;
+                ob.addEventListener('click', function () {
+                    initAudio();
+                    if (actx.state === 'suspended') actx.resume();
+                    musicOn = !musicOn;
+                    ob.classList.toggle('on', musicOn);
+                    ob.textContent = musicOn ? '♪ 关闭' : '开启 🎵';
+                });
+            })();
+
+            // 仅在 Hero 可视时运行，离开视口暂停，省 CPU
+            if ('IntersectionObserver' in window) {
+                new IntersectionObserver(function (es) {
+                    visible = es[0].isIntersecting;
+                    if (visible && !rafOn) { rafOn = true; last = 0; requestAnimationFrame(step); }
+                }, { threshold: 0 }).observe(host);
+            } else {
+                rafOn = true; requestAnimationFrame(step);
+            }
+
+        })();
+    </script>
+
+</body>
+</html>
