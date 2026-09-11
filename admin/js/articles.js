@@ -54,7 +54,7 @@
             '<td><div class="row-actions">' +
             '<a class="btn btn-ghost" href="editor.html?id=' + encodeURIComponent(a.id) + '">编辑</a>' +
             '<button class="btn btn-ghost" data-act="pin">' + (a.pinned ? '取消置顶' : '置顶') + '</button>' +
-            '<button class="btn btn-ghost" data-act="status">' + (a.status === 'published' ? '转草稿' : '发布') + '</button>' +
+            '<button class="btn btn-ghost" data-act="status">' + (a.status === 'published' ? '标记为草稿' : '标记已发布') + '</button>' +
             '<button class="btn btn-ghost" data-act="dup">复制</button>' +
             '<button class="btn btn-ghost" data-act="json">导出</button>' +
             '<button class="btn btn-ghost" data-act="pdf">PDF</button>' +
@@ -76,7 +76,9 @@
             root.innerHTML =
                 '<section class="admin-section">' +
                 '<header>' +
-                '<div><h2>文章</h2><div class="sub">编辑与删除不用区分线上线下：删除会记入发布包，落地后仓库里的同名文章一并移除。</div></div>' +
+                '<div><h2>文章</h2><div class="sub">状态与删除都在本地改：公开站点读的是 <code>articles/</code> 里的落地文件，' +
+                '所以「标记已发布」之后还要去「发布」视图打包落地，站点上才会出现。' +
+                '删除会记入发布包，落地时仓库里的同名文章一并移除。</div></div>' +
                 '<div class="admin-actions"><a class="btn btn-primary btn-sm" href="editor.html">写新文章</a></div>' +
                 '</header>' +
 
@@ -101,8 +103,8 @@
                 '<div class="bulk-bar" data-role="bulk" hidden>' +
                 '<span class="n" data-role="bulkCount">0</span><span class="d">篇已选</span>' +
                 '<div class="grow"></div>' +
-                '<button class="btn btn-primary btn-sm" data-bulk="publish" type="button">批量发布</button>' +
-                '<button class="btn btn-ghost btn-sm" data-bulk="draft" type="button">转为草稿</button>' +
+                '<button class="btn btn-primary btn-sm" data-bulk="publish" type="button">批量标记已发布</button>' +
+                '<button class="btn btn-ghost btn-sm" data-bulk="draft" type="button">标记为草稿</button>' +
                 '<button class="btn btn-ghost btn-sm" data-bulk="pin" type="button">置顶</button>' +
                 '<button class="btn btn-ghost btn-sm" data-bulk="unpin" type="button">取消置顶</button>' +
                 '<button class="btn btn-ghost btn-sm" data-bulk="export" type="button">导出</button>' +
@@ -163,7 +165,9 @@
                 Promise.all(list.map(function (a) {
                     return Store.saveArticle(Object.assign({}, a, { status: status }));
                 })).then(function () {
-                    UI.toast(label + '（' + list.length + ' 篇）', 'ok');
+                    // 状态存在浏览器的 IndexedDB 里，站点读的是 articles/：
+                    // 不说清楚的话，"已发布"看起来就像已经上线了（这个提示不是多余的）。
+                    UI.toast(label + '（' + list.length + ' 篇）· 仅本地状态，落地后才会上线', 'ok', 3800);
                     return ctx.refresh();
                 });
             }
@@ -223,8 +227,8 @@
                 var act = btn.getAttribute('data-bulk');
                 var list = selectedList();
                 if (act === 'clear') { selected = {}; render(); return; }
-                if (act === 'publish') return setStatus(list, 'published', '已发布');
-                if (act === 'draft') return setStatus(list, 'draft', '已转为草稿');
+                if (act === 'publish') return setStatus(list, 'published', '已标记为已发布');
+                if (act === 'draft') return setStatus(list, 'draft', '已标记为草稿');
                 if (act === 'pin') return setPin(list, true, '已置顶');
                 if (act === 'unpin') return setPin(list, false, '已取消置顶');
                 if (act === 'export') {
@@ -253,7 +257,11 @@
                 }
                 if (act === 'pdf') { A.exportPDF(a); return; }
                 if (act === 'pin') { setPin([a], !a.pinned, a.pinned ? '已取消置顶' : '已置顶'); return; }
-                if (act === 'status') { setStatus([a], a.status === 'published' ? 'draft' : 'published', '状态已更新'); return; }
+                if (act === 'status') {
+                    var to = a.status === 'published' ? 'draft' : 'published';
+                    setStatus([a], to, to === 'published' ? '已标记为已发布' : '已标记为草稿');
+                    return;
+                }
                 if (act === 'del') { remove([a]); return; }
                 if (act === 'dup') {
                     var copy = Store.normalize(Object.assign({}, a, {

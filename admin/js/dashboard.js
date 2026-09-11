@@ -77,7 +77,7 @@
 
                 '<div class="stat-cards">' +
                 statCard('本地文章', local.length, local.length ? '最近更新 ' + Store.fmtRelative(lastUpdated) : '还没有本地文章') +
-                statCard('已发布', published.length, '公开站点可见', 'tone-ok') +
+                statCard('已发布', published.length, '本地标记，落地后才上线', 'tone-ok') +
                 statCard('草稿', drafts.length, '仅本地保存') +
                 statCard('本地图片', st.images.length, st.images.length ? UI.fmtBytes(st.imageBytes) : '还没有图片') +
                 statCard('线上文章', st.repoCount, st.repoCount ? '来自 articles/' : '未读到 articles/index.json') +
