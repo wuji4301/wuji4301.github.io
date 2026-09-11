@@ -74,14 +74,26 @@
             toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
             toggle.setAttribute('aria-label', open ? '关闭菜单' : '打开菜单');
             toggle.textContent = open ? '✕' : '☰';
+            // 展开时锁住页面滚动：否则手指在菜单上滑动会连带滚动背后的正文
+            doc.body.classList.toggle('menu-open', open);
         }
+        function close() { if (menu.classList.contains('open')) set(false); }
         toggle.addEventListener('click', function () { set(!menu.classList.contains('open')); });
         Array.prototype.forEach.call(menu.querySelectorAll('a'), function (a) {
-            a.addEventListener('click', function () { set(false); });
+            a.addEventListener('click', close);
         });
         doc.addEventListener('click', function (e) {
-            if (menu.classList.contains('open') && !menu.contains(e.target) && !toggle.contains(e.target)) set(false);
+            if (menu.classList.contains('open') && !menu.contains(e.target) && !toggle.contains(e.target)) close();
         });
+        // 触屏/键盘都能退出：Esc 关闭
+        doc.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' || e.keyCode === 27) close();
+        });
+        // 横屏或旋转到宽视口后菜单已被 CSS 收起，重置状态避免"隐形遮罩"残留
+        var wide = global.matchMedia('(min-width: 641px)');
+        var onWide = function (e) { if (e.matches) close(); };
+        if (wide.addEventListener) wide.addEventListener('change', onWide);
+        else if (wide.addListener) wide.addListener(onWide);
     }
 
     /* ---------------------------------------------------------- 导航高亮 */

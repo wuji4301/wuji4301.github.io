@@ -75,7 +75,12 @@
         .orbit3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
         @media (max-width: 640px) {
+            /* 手机上 13vh 的顶部留白会把正文推到很下面，收窄成固定值 */
+            .hero { padding: 52px 0 34px; }
             .hero h1 { letter-spacing: -.8px; }
+            .hero-lead { font-size: 15.5px; line-height: 1.82; }
+            .hero-meta { margin-top: 20px; }
+            .cta { gap: 10px; }
             .contact { padding: clamp(26px, 7vw, 40px) 20px; }
         }
     </style>

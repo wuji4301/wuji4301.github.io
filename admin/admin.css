@@ -6,11 +6,13 @@
    ========================================================================== */
 
 /* 一、骨架 */
-.admin-app { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; }
+.admin-app { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
 .admin-side {
     position: sticky; top: 0; z-index: 30;
     display: flex; flex-direction: column; gap: var(--sp-4);
-    height: 100vh; padding: var(--sp-5) 16px; overflow-y: auto;
+    height: 100vh; height: 100dvh; overflow-y: auto;
+    /* 侧栏 / 抽屉内容避开刘海与底部手势条 */
+    padding: calc(var(--sp-5) + var(--safe-t)) max(16px, var(--safe-l)) calc(var(--sp-5) + var(--safe-b));
     background: var(--bg-soft); border-right: 1px solid var(--border);
 }
 .admin-side-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 6px; }
@@ -48,7 +50,8 @@
 .admin-top {
     position: sticky; top: 0; z-index: 20;
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-    gap: var(--sp-3); min-height: 62px; padding: 10px var(--sp-5);
+    gap: var(--sp-3); min-height: 62px;
+    padding: calc(10px + var(--safe-t)) max(var(--sp-5), var(--safe-r)) 10px max(var(--sp-5), var(--safe-l));
     background: var(--nav-bg); border-bottom: 1px solid var(--border);
     backdrop-filter: blur(14px);
 }
@@ -66,7 +69,12 @@
     border: 1px solid var(--border); border-radius: var(--r-md); cursor: pointer;
 }
 .admin-menu-btn:hover { color: var(--text); border-color: var(--border-strong); }
-.admin-content { flex: 1; padding: var(--sp-5); }
+.admin-content {
+    flex: 1; padding: var(--sp-5);
+    padding-right: max(var(--sp-5), var(--safe-r));
+    padding-bottom: calc(var(--sp-5) + var(--safe-b));
+    padding-left: max(var(--sp-5), var(--safe-l));
+}
 .admin-content--editor { width: 100%; max-width: 1180px; margin: 0 auto; }
 .admin-view { display: flex; flex-direction: column; gap: var(--sp-5); }
 .admin-loading { padding: 48px 20px; font-size: var(--fs-md); color: var(--text-faint); text-align: center; }
@@ -81,7 +89,8 @@
 .admin-banner .t { font-size: var(--fs-lg); font-weight: 760; color: var(--text); }
 .admin-banner .d { margin-top: 6px; font-size: var(--fs-base); line-height: 1.7; color: var(--text-muted); }
 .admin-banner .d code, .admin-section .body code { font-size: var(--fs-sm); }
-.admin-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--sp-5); }
+/* min(100%, 320px)：320px 屏幕上容器只有 ~288px，写死 320px 会把页面撑宽 */
+.admin-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: var(--sp-5); }
 .admin-section { overflow: hidden; background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--r-xl); }
 .admin-section > header {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
@@ -217,7 +226,7 @@
 .thumb-meta .t { overflow: hidden; font-size: var(--fs-base); font-weight: 640; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
 .thumb-meta .d { font-size: var(--fs-sm); color: var(--text-faint); }
 .thumb-meta .row-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-.thumb-preview { display: block; max-width: 100%; max-height: 68vh; margin: 0 auto; border-radius: var(--r-md); }
+.thumb-preview { display: block; max-width: 100%; max-height: 68vh; max-height: 68dvh; margin: 0 auto; border-radius: var(--r-md); }
 
 /* 七、危险区 */
 .danger-zone {
@@ -241,19 +250,50 @@
         text-transform: uppercase; color: var(--text-faint);
     }
     .admin-table .row-actions { justify-content: flex-start; margin-top: 10px; }
+    /* 表格卡片化后按钮要够大，手指才点得准 */
+    .admin-table .row-actions .btn { padding: 8px 13px; font-size: var(--fs-base); }
     .admin-count { margin-left: 0; }
 }
 @media (max-width: 900px) {
     .admin-app { grid-template-columns: minmax(0, 1fr); }
     .admin-side {
-        position: fixed; top: 0; left: 0; z-index: 50; width: 268px; height: 100vh;
+        position: fixed; top: 0; left: 0; z-index: 50;
+        width: min(280px, 84vw);
+        height: 100vh; height: 100dvh;
         transform: translateX(-100%); box-shadow: var(--shadow);
         transition: transform var(--dur-2) var(--ease-out);
     }
     body.admin-drawer-open .admin-side { transform: none; }
     body.admin-drawer-open .admin-scrim { display: block; }
-    .admin-menu-btn { display: inline-flex; }
-    .admin-top { padding: 10px var(--sp-4); }
-    .admin-content { padding: var(--sp-4); }
+    /* 抽屉展开时锁住背后页面，避免滚动穿透 */
+    body.admin-drawer-open { overflow: hidden; }
+    .admin-menu-btn { display: inline-flex; width: 40px; height: 40px; }
+    .admin-nav-link { padding: 11px 12px; }
+    .admin-top {
+        padding: calc(10px + var(--safe-t)) max(var(--sp-4), var(--safe-r)) 10px max(var(--sp-4), var(--safe-l));
+    }
+    .admin-content {
+        padding: var(--sp-4) max(var(--sp-4), var(--safe-r)) calc(var(--sp-4) + var(--safe-b)) max(var(--sp-4), var(--safe-l));
+    }
     .admin-crumb span { display: none; }
+}
+
+/* 超窄机型（≤380px）：再收一档内边距，保证不出现横向滚动 */
+@media (max-width: 380px) {
+    .admin-top { padding-left: max(12px, var(--safe-l)); padding-right: max(12px, var(--safe-r)); }
+    .admin-content { padding-left: max(12px, var(--safe-l)); padding-right: max(12px, var(--safe-r)); }
+    .admin-section .body { padding: 14px; }
+    .admin-section > header { padding: 12px 14px; }
+    .admin-table tr { padding: 12px 13px; }
+    .admin-toolbar { padding: 12px 13px; }
+    .stat-card { padding: 13px 14px; }
+    .stat-card .v { font-size: 23px; }
+    .stat-cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 132px), 1fr)); }
+    .quick-grid { grid-template-columns: minmax(0, 1fr); }
+    .thumb-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr)); }
+    /* 横向排不下的行内面板改成竖排，文字不再被挤成一列一个字 */
+    .cmd, .export-row, .danger-zone { flex-direction: column; align-items: stretch; }
+    .cmd .copy-cmd { align-self: flex-start; }
+    .recent-item .t { flex-basis: 100%; }
+    .admin-actions .btn { flex: 1 1 auto; }
 }

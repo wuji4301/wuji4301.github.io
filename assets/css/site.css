@@ -189,6 +189,15 @@
     --dur-1: .18s;
     --dur-2: .28s;
     --dur-3: .4s;
+
+    /* 安全区（刘海屏 / 圆角屏 / 手势条）。需配合 viewport-fit=cover 才有非零值 */
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-r: env(safe-area-inset-right, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
+    /* 导航实际占位高度：基础高度 + 顶部安全区（小屏下 --nav-h 会被改小）。
+       吸顶定位、锚点偏移、移动菜单的落点都统一用它，避免被状态栏压住。 */
+    --nav-total: calc(var(--nav-h) + var(--safe-t));
 }
 
 /* ==========================================================================
@@ -199,7 +208,7 @@
 
 html {
     scroll-behavior: smooth;
-    scroll-padding-top: calc(var(--nav-h) + 16px);
+    scroll-padding-top: calc(var(--nav-total) + 16px);
     scrollbar-gutter: stable;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
@@ -273,7 +282,7 @@ img { height: auto; }
     box-shadow: var(--shadow-md);
     transition: top var(--dur-2) var(--ease-out);
 }
-.skip-link:focus { top: 0; }
+.skip-link:focus { top: var(--safe-t); }
 
 /* ==========================================================================
    3. 背景层
@@ -323,8 +332,8 @@ img { height: auto; }
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
     gap: var(--sp-4);
-    min-height: var(--nav-h);
-    padding: 10px clamp(16px, 5vw, 56px);
+    min-height: calc(var(--nav-h) + var(--safe-t));
+    padding: calc(10px + var(--safe-t)) clamp(16px, 5vw, 56px) 10px;
     padding-left: max(clamp(16px, 5vw, 56px), env(safe-area-inset-left));
     padding-right: max(clamp(16px, 5vw, 56px), env(safe-area-inset-right));
     background: var(--nav-bg);
@@ -434,7 +443,7 @@ img { height: auto; }
 /* 移动端下拉菜单 */
 .mobile-menu {
     position: fixed;
-    top: var(--nav-h);
+    top: var(--nav-total);
     left: 0;
     right: 0;
     z-index: 49;
@@ -482,6 +491,9 @@ img { height: auto; }
     max-width: var(--wrap);
     margin: 0 auto;
     padding: 0 clamp(16px, 5vw, 56px);
+    /* 横屏刘海机：左右安全区兜底，正文不会被圆角/刘海切掉 */
+    padding-left: max(clamp(16px, 5vw, 56px), env(safe-area-inset-left));
+    padding-right: max(clamp(16px, 5vw, 56px), env(safe-area-inset-right));
 }
 .wrap-narrow { max-width: var(--wrap-narrow); }
 .section-pad { padding: clamp(44px, 7vh, 82px) 0; }
@@ -716,6 +728,7 @@ a.tag:hover { color: var(--text); border-color: var(--border-strong); background
     margin-top: var(--sp-7);
     border-top: 1px solid var(--border);
     padding: clamp(30px, 5vh, 48px) 0 40px;
+    padding-bottom: calc(40px + var(--safe-b));
 }
 .footer-inner {
     display: flex;
@@ -745,7 +758,8 @@ a.tag:hover { color: var(--text); border-color: var(--border-strong); background
 .progress,
 .reading-progress {
     position: fixed;
-    top: 0;
+    /* 下移到状态栏之下，否则整条进度线被刘海区吞掉 */
+    top: var(--safe-t);
     left: 0;
     width: 100%;
     height: 2px;
@@ -868,7 +882,7 @@ code, kbd, pre, samp {
     z-index: 100;
     display: grid;
     place-items: center;
-    padding: 18px;
+    padding: max(18px, var(--safe-t)) max(18px, var(--safe-r)) max(18px, var(--safe-b)) max(18px, var(--safe-l));
     background: rgba(8, 8, 10, .54);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
@@ -881,7 +895,9 @@ code, kbd, pre, samp {
 .wj-modal {
     width: 100%;
     max-width: 520px;
+    /* dvh：移动端地址栏收起/展开时高度会变，用 vh 会把弹窗顶出屏幕 */
     max-height: 88vh;
+    max-height: 88dvh;
     display: flex;
     flex-direction: column;
     background: var(--panel-solid);
@@ -938,7 +954,7 @@ code, kbd, pre, samp {
 .toast-host {
     position: fixed;
     left: 50%;
-    bottom: max(22px, env(safe-area-inset-bottom));
+    bottom: max(22px, calc(var(--safe-b) + 12px));
     transform: translateX(-50%);
     z-index: 120;
     display: flex;
@@ -990,19 +1006,73 @@ code, kbd, pre, samp {
 .nav-links a:active,
 .mobile-menu a:active { color: var(--text); background: var(--surface-2); }
 
+/* 移动菜单展开时锁住页面滚动：否则手指在菜单外滑动会带着正文一起滚 */
+body.menu-open { overflow: hidden; }
+
+/* 提示条在小屏不撑破视口（长文案要能换行） */
+.toast { max-width: min(92vw, 560px); text-align: center; }
+
 @media (max-width: 900px) {
     .nav-links { gap: 0; }
     .nav-links a { padding: 7px 10px; font-size: var(--fs-base); }
 }
 
+/* 手机：触摸目标、输入缩放、动态视口等按触屏习惯重排 */
 @media (max-width: 640px) {
     :root { --nav-h: 58px; }
+
     .nav-links { display: none; }
     .nav-toggle { display: grid; }
+
+    /* 触摸目标不小于 40px，拇指才点得中 */
+    .theme-toggle,
+    .nav-toggle { width: 40px; height: 40px; }
+    .brand { font-size: 16px; }
+    .brand .mark { width: 30px; height: 30px; }
+    .nav-open { height: 40px; padding: 0 14px; }
+
+    /* iOS 上 <16px 的输入框聚焦时会强制放大整页。
+       统一抬到 16px，"一点输入框页面就跳大"的问题消失。 */
+    .input, .textarea, .select { font-size: 16px; }
+    .select { padding-right: 38px; }
+
+    /* 按钮加大到适合拇指的尺寸 */
+    .btn { padding: 12px 20px; }
+    .btn-sm { padding: 10px 15px; font-size: var(--fs-md); border-radius: var(--r-md); }
+    .btn-xs { padding: 8px 12px; font-size: var(--fs-base); }
+    .tag { padding: 7px 13px; }
+    .check { padding: 4px 0; font-size: var(--fs-lg); }
+    .check input[type="checkbox"] { width: 21px; height: 21px; }
+
+    /* 菜单在横屏 / 矮视口下可滚动，条目不会被裁掉 */
+    .mobile-menu {
+        max-height: calc(100dvh - var(--nav-total));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+    .mobile-menu a { padding: 13px 14px; }
+
+    /* 弹窗改为底部抽屉：落在拇指可及处，也不易被软键盘顶出屏幕 */
+    .wj-modal-overlay { place-items: end center; padding: 0; }
+    .wj-modal {
+        max-width: 100%;
+        max-height: 92dvh;
+        border-bottom: none;
+        border-radius: var(--r-xl) var(--r-xl) 0 0;
+        transform: translateY(16px);
+    }
+    .wj-modal-head { padding: 14px 16px; }
+    .wj-modal-body { padding: 16px; }
+    .wj-modal-foot { padding: 12px 16px calc(12px + var(--safe-b)); }
+    .wj-modal-foot .btn { flex: 1 1 auto; }
+    .wj-modal-x { width: 38px; height: 38px; font-size: 14px; }
+
     .cta { flex-direction: column; align-items: stretch; }
     .cta .btn { width: 100%; }
     .footer-inner { flex-direction: column; align-items: flex-start; gap: var(--sp-4); }
+    .f-links a { padding: 10px 12px; }
     .section-head { margin-bottom: var(--sp-4); }
+    .section-pad { padding: 42px 0; }
 }
 
 @media (min-width: 641px) {

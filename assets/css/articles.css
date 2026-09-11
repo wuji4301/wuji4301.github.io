@@ -249,8 +249,9 @@
 /* 目录 */
 .toc {
     position: sticky;
-    top: calc(var(--nav-h) + 20px);
-    max-height: calc(100vh - var(--nav-h) - 48px);
+    top: calc(var(--nav-total) + 20px);
+    max-height: calc(100vh - var(--nav-total) - 48px);
+    max-height: calc(100dvh - var(--nav-total) - 48px);
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 16px 14px;
@@ -320,7 +321,7 @@
     letter-spacing: -.3px;
     color: var(--text);
     text-wrap: balance;
-    scroll-margin-top: calc(var(--nav-h) + 24px);
+    scroll-margin-top: calc(var(--nav-total) + 24px);
 }
 .prose h1 { font-size: 1.8em; }
 .prose h2 {
@@ -345,6 +346,10 @@
 .prose h1:hover .h-anchor, .prose h2:hover .h-anchor, .prose h3:hover .h-anchor,
 .prose h4:hover .h-anchor, .prose h5:hover .h-anchor, .prose h6:hover .h-anchor { opacity: 1; }
 .prose .h-anchor:hover { color: var(--accent); }
+/* 触屏没有 hover，锚点永远点不到；它的负偏移还会在窄屏撑出一段横向可滚动区 */
+@media (hover: none) {
+    .prose .h-anchor { display: none; }
+}
 
 .prose strong { color: var(--text); font-weight: 720; }
 .prose em { font-style: italic; }
@@ -588,11 +593,12 @@
 
 .editor-side {
     position: sticky;
-    top: calc(var(--nav-h) + 16px);
+    top: calc(var(--nav-total) + 16px);
     display: flex;
     flex-direction: column;
     gap: var(--sp-4);
-    max-height: calc(100vh - var(--nav-h) - 32px);
+    max-height: calc(100vh - var(--nav-total) - 32px);
+    max-height: calc(100dvh - var(--nav-total) - 32px);
     overflow-y: auto;
     overscroll-behavior: contain;
     padding-right: 2px;
@@ -697,8 +703,11 @@
 .wj-editor {
     flex: 1 1 auto;
     max-height: 68vh;
+    max-height: 68dvh;
     padding: 26px clamp(18px, 3vw, 36px);
+    /* 竖向滚动 + 横向兜底：宽表格在编辑区内滑动，而不是把整页撑宽 */
     overflow-y: auto;
+    overflow-x: auto;
     font-size: 15.5px;
     line-height: 1.8;
     color: var(--text-2);
@@ -775,6 +784,7 @@
     flex: 1 1 auto;
     width: 100%;
     max-height: 68vh;
+    max-height: 68dvh;
     padding: 20px clamp(16px, 3vw, 30px);
     overflow: auto;
     font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
@@ -815,16 +825,31 @@
 .foot-sep { opacity: .5; }
 
 @media (max-width: 940px) {
-    .editor-shell { grid-template-columns: minmax(0, 1fr); }
+    .editor-shell { grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); padding: var(--sp-4) 0 var(--sp-6); }
     .editor-side { position: static; order: 2; max-height: none; }
     .editor-main { order: 1; }
-    .editor-bar { overflow-x: auto; }
+    /* 工具栏横向滑动：放不下时左右滑，而不是换行把编辑区挤扁 */
+    .editor-bar { overflow-x: auto; padding: 8px; -webkit-overflow-scrolling: touch; }
     .toolbar { flex-wrap: nowrap; }
+    .editor-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .wj-editor, .md-source { max-height: none; min-height: 52vh; }
+    /* 状态行可换行，长文案不被裁切 */
+    .editor-foot { flex-wrap: wrap; }
 }
 @media (max-width: 640px) {
     .wj-editor { padding: 18px 15px; font-size: 15px; }
     .editor-hint { display: none; }
+    /* 编辑器按钮全部放大到拇指可点 */
+    .tb-btn { min-width: 40px; height: 40px; font-size: var(--fs-md); }
+    .tb-sep { height: 22px; }
+    .etab { padding: 10px 16px; font-size: var(--fs-md); }
+    .md-source { padding: 16px 14px; font-size: 13px; }
+    .seg-btn { padding: 9px 16px; }
+    /* 输入类控件抬到 16px，避免 iOS 聚焦时放大页面 */
+    .math-input, .code-input, .input, .textarea, .select { font-size: 16px; }
+    .math-palette { max-height: 152px; }
+    .math-palette .sym { min-width: 42px; height: 38px; }
+    .math-preview { min-height: 56px; }
 }
 
 /* 公式编辑弹窗 */
@@ -919,7 +944,7 @@
 }
 .summary {
     position: sticky;
-    top: var(--nav-h);
+    top: var(--nav-total);
     z-index: 20;
     display: flex;
     flex-wrap: wrap;
@@ -990,7 +1015,67 @@
 /* 阅读页进度条（.progress 已在 site.css 定义，这里只补充最小宽度语义） */
 @media (max-width: 1000px) {
     .article-layout { grid-template-columns: minmax(0, 1fr); }
-    .toc { position: static; max-height: none; }
+    /* 单列后目录会掉到正文末尾，等于失效。
+       提到正文之前并限高可滚，让它成为"章节跳板"而不是一屏长列表。 */
+    .toc {
+        position: static;
+        order: -1;
+        max-height: min(44vh, 300px);
+        padding: 12px;
+    }
+    .toc a { padding: 9px 10px; }
+}
+
+/* --------------------------------------------------------------------------
+   手机（≤640px）：列表页 / 阅读页 / 正文排版
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+    /* 列表：单列更紧凑，卡片内边距收窄，封面同步回正以免出现横向滚动 */
+    .post-grid { gap: var(--sp-4); }
+    .post-card { padding: 18px 18px 16px; }
+    .post-cover {
+        width: calc(100% + 36px);
+        margin: -18px -18px 4px;
+        height: auto;
+        aspect-ratio: 16 / 9;
+    }
+    .post-summary { -webkit-line-clamp: 4; }
+
+    /* 搜索与排序各占一行，比并排挤在 300px 里更好按 */
+    .list-toolbar { gap: 8px; margin: 18px 0 14px; }
+    .search-box { flex: 1 1 100%; min-width: 0; }
+    .list-toolbar .select { flex: 1 1 100%; width: 100%; min-width: 0; }
+    .tag-filter { gap: 6px; margin-bottom: var(--sp-4); }
+    .local-bar { padding: 11px 13px; }
+
+    /* 正文：字号、行高与内边距按手机阅读重新配比 */
+    .prose { font-size: 16.5px; line-height: 1.78; }
+    .prose h1 { font-size: 1.6em; }
+    .prose h2 { font-size: 1.34em; }
+    .prose blockquote { margin: 1.2em 0; padding: 12px 15px; }
+    .prose ul, .prose ol { padding-left: 1.3em; }
+    .prose img { border-radius: var(--r-lg); }
+    .prose .table-wrap { border-radius: var(--r-lg); }
+    .prose table { font-size: var(--fs-base); }
+    .prose th, .prose td { padding: 9px 11px; }
+    .prose pre, .wj-editor pre { padding: 13px 14px; font-size: 12.5px; }
+    .code-head { padding: 8px 12px; }
+
+    /* iOS 横向滚动区补上惯性滚动 */
+    .prose .table-wrap,
+    .prose pre,
+    .math-block,
+    .katex-display { -webkit-overflow-scrolling: touch; }
+
+    /* 底部操作排成两列铺满，拇指一次点得到 */
+    .article-foot { gap: var(--sp-3); }
+    .article-actions { width: 100%; gap: 8px; }
+    .article-actions .btn { flex: 1 1 calc(50% - 4px); }
+
+    .editor-shell { padding: var(--sp-4) 0 var(--sp-5); }
+    .test-head p { font-size: var(--fs-md); }
+    .summary { margin: var(--sp-4) 0; padding: 11px 13px; }
+    .summary b { font-size: 17px; }
 }
 
 /* ==========================================================================
