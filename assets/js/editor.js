@@ -947,6 +947,7 @@
 
     Editor.prototype.collect = function () {
         var a = this.article;
+        var wasRepo = a.source === 'repo';   // 下面会把 source 改成 local，先记下原来源
         a.title = (this.$.title.value || '').trim() || '未命名文章';
         a.summary = (this.$.summary.value || '').trim();
         a.tags = (this.$.tags.value || '').split(/[,，]/).map(function (s) { return s.trim(); }).filter(Boolean);
@@ -957,8 +958,11 @@
         a.localOnly = true;
         if (!a.id) a.id = Store.genId('a');
         if (!a.createdAt) a.createdAt = Store.nowISO();
-        // slug 跟随标题，但已有 slug 时保持不变（避免链接失效）
-        if (!a.slug) a.slug = Store.slugify(a.title, a.id);
+        // 编辑器里没有 slug 输入框，slug 一律由标题派生：
+        // · 已经落地到仓库的文章保留原 slug（改标题不该悄悄改掉线上链接）；
+        // · 其余（新建 / 导入 / 尚未落地）都跟着标题重新生成，否则 normalize 一开始
+        //   补的占位 slug（"未命名文章"）会被永久固化，标题改成「测试」也不生效。
+        if (!wasRepo || !a.slug) a.slug = Store.slugify(a.title, a.id);
         return a;
     };
 

@@ -29,13 +29,16 @@ const byId = sandbox.WJ_ARTICLES_BY_ID;
 
 // 条数由仓库内容决定（可以是 0），所以这里校验的是"索引与列表严格对应"，
 // 而不是"必须非空"——后者会让清空博客变成一件要改测试的事。
+// 两个索引在生成的脚本里是分别 JSON 序列化再解析出来的，对象引用不可能相等；
+// 原先写成 byId[a.id] === a，只有在仓库为空（list 为空）时才恰好成立。
 t('BY_ID 索引与列表一一对应',
-  list.every((a) => byId[a.id] === a) && Object.keys(byId).length === list.length,
+  Object.keys(byId).length === list.length &&
+  list.every((a) => JSON.stringify(byId[a.id]) === JSON.stringify(a)),
   '列表 ' + list.length + ' / 索引 ' + Object.keys(byId).length);
 
 console.log('\n== 数据完整性 ==');
 for (const a of list) {
-  t('  ' + a.id + ' 有正文', typeof a.body === 'string' && a.body.length > 100, '正文长度 ' + (a.body || '').length);
+  t('  ' + a.id + ' 有正文', typeof a.body === 'string' && a.body.trim().length > 0, '正文长度 ' + (a.body || '').length);
   t('  ' + a.id + ' 有 id/slug/title', !!(a.id && a.slug && a.title));
   t('  ' + a.id + ' 在 BY_ID 索引中', !!byId[a.id]);
   t('  ' + a.id + ' 状态为 published', a.status === 'published');
@@ -86,17 +89,18 @@ const SAMPLE_BODY = [
   '结尾段落，再补一句话让渲染结果足够长，便于断言输出确实成形了。'
 ].join('\n');
 
-const renderables = list.length
-  ? list.map((a) => ({ id: a.id, body: a.body }))
-  : [{ id: '(内置样本)', body: SAMPLE_BODY }];
-if (!list.length) console.log('  --   仓库里还没有文章，改用内置样本（本节仍然有效）');
-for (const a of renderables) {
+// 仓库文章的篇幅与结构由作者决定（可能只是一篇很短的测试稿），所以"结构渲染能力"
+// 一律用内置样本断言；仓库里的文章只断言「嵌入的正文真的能渲染出非空 HTML」。
+for (const a of list) {
   const html = MD.render(a.body);
-  t('  ' + a.id + ' 渲染出内容', html.length > 500, '长度 ' + html.length);
-  t('  ' + a.id + ' 渲染出章节标题', /<h2[^>]*>/.test(html), '没有 h2');
-  const toc = MD.extractTOC(a.body);
-  t('  ' + a.id + ' 可提取目录', toc.length >= 2, '目录 ' + toc.length + ' 条');
+  t('  ' + a.id + ' 渲染出非空 HTML', html.length > 0, '长度 ' + html.length);
 }
+console.log('  --   结构完整性用内置样本断言（不受仓库内容影响）');
+const sampleHTML = MD.render(SAMPLE_BODY);
+t('  内置样本 渲染出内容', sampleHTML.length > 500, '长度 ' + sampleHTML.length);
+t('  内置样本 渲染出章节标题', /<h2[^>]*>/.test(sampleHTML), '没有 h2');
+const sampleTOC = MD.extractTOC(SAMPLE_BODY);
+t('  内置样本 可提取目录', sampleTOC.length >= 2, '目录 ' + sampleTOC.length + ' 条');
 
 // 4) 公开页面走 blog.js 阅读层，后台页面走 store.js 本地库；数据脚本都必须先于数据层引入
 console.log('\n== 页面接线 ==');

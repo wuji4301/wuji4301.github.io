@@ -156,14 +156,12 @@
 
             /* -------------------------------------------------- 打包发布 */
 
-            q('[data-role="publish"]').addEventListener('click', function () {
+            // 草稿不会进公开站点（articles-data.js 与阅读层都会把它过滤掉），
+            // 所以"打包了却看不到文章"必须先在点击时就说清楚。
+            function buildPack() {
                 var locals = A.state.local;
                 var deletions = (A.state.deleted || []).slice();
                 var imgs = A.state.images;
-                if (!locals.length && !deletions.length) {
-                    UI.toast('本地既没有文章，也没有待同步的删除', 'err', 3000);
-                    return;
-                }
                 var pack = {
                     format: 'wuji-blog-publish',
                     version: 1,
@@ -201,6 +199,25 @@
                     width: '660px',
                     actions: [{ label: '知道了', value: true, primary: true }]
                 });
+            }
+
+            q('[data-role="publish"]').addEventListener('click', function () {
+                var locals = A.state.local;
+                var deletions = (A.state.deleted || []).slice();
+                if (!locals.length && !deletions.length) {
+                    UI.toast('本地既没有文章，也没有待同步的删除', 'err', 3000);
+                    return;
+                }
+                var drafts = locals.filter(function (a) { return a.status !== 'published'; }).length;
+                if (drafts) {
+                    UI.confirm('有 ' + drafts + ' 篇草稿不会上线',
+                        '公开站点只展示「已发布」的文章。当前已发布 ' + (locals.length - drafts) +
+                        ' 篇、草稿 ' + drafts + ' 篇；草稿会被打进发布包，但落地时跳过，站点上看不到。' +
+                        '建议先回「文章」视图把要公开的文章标记为「已发布」，再回来打包。',
+                        '仍要打包').then(function (yes) { if (yes) buildPack(); });
+                    return;
+                }
+                buildPack();
             });
 
             q('[data-role="export"]').addEventListener('click', function () {
