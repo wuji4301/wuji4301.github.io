@@ -69,6 +69,17 @@
         return n;
     }
 
+    /**
+     * normalize() 会给没有标题的文章补上占位标题。它不是用户输入，不该填进标题框
+     * 冒充已填内容；与 collect() 的兜底同源，日后改 normalize 也无需同步这里。
+     * 延迟取值：editor.js 不因此多出一条"必须在 store.js 之后加载"的要求。
+     */
+    var _placeholderTitle = null;
+    function placeholderTitle() {
+        if (_placeholderTitle == null) _placeholderTitle = Store.normalize({}).title;
+        return _placeholderTitle;
+    }
+
     function Editor(host, options) {
         this.host = host;
         this.options = options || {};
@@ -177,7 +188,9 @@
     Editor.prototype.load = function (article) {
         this.article = Store.normalize(article || {});
         var a = this.article;
-        this.$.title.value = a.body ? a.title : '';
+        // 占位标题不进输入框（见 placeholderTitle）；其余情况一律原样回填 ——
+        // 尤其是"标题已填、正文还空着"的草稿，清空标题会让下一次自动保存把它覆盖掉。
+        this.$.title.value = a.title === placeholderTitle() ? '' : a.title;
         this.$.summary.value = a.summary || '';
         this.$.tags.value = (a.tags || []).join(', ');
         this.$.cover.value = a.cover || '';

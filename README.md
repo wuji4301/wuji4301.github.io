@@ -232,7 +232,7 @@ KaTeX 0.16.11 自托管于 `vendor/katex/`（65 个文件，约 1.35 MiB，含 w
 
 ```bash
 node tools/test-render.mjs     # Markdown 渲染器（88 项，自带极简 DOM 垫片）
-node tools/test-convert.mjs    # HTML ⇄ Markdown 往返（84 项）
+node tools/test-convert.mjs    # HTML ⇄ Markdown 往返（85 项）
 node tools/test-katex.mjs      # 真实 KaTeX 排版仓库文章 + 内置样本公式（28 项）
 node tools/test-css.mjs        # 样式括号/变量/结构/令牌完整性（66 项）
 node tools/test-design.mjs     # WCAG 对比度、阶梯单调性、可访问性细节（63 项）
@@ -242,7 +242,7 @@ node tools/test-publish.mjs    # 发布链路端到端，含删除标记、dry-r
 node tools/test-store.mjs      # 数据层：删除标记、刷新后持久化、自愈（21 项，自带 IndexedDB 垫片）
 ```
 
-共 **512 项断言**。`test-publish.mjs` 会完整备份并还原 `articles/`，跑完不留痕迹。
+共 **513 项断言**。`test-publish.mjs` 会完整备份并还原 `articles/`，跑完不留痕迹。
 
 `test-katex.mjs` 与 `test-data.mjs` 的项数随仓库文章数增减（当前仓库为空，故为 28 / 13）；
 其余各项与文章内容无关。`test-store.mjs` 用文件内固定样本注入仓库侧数据，仓库清空也不会变红。

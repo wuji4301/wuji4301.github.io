@@ -575,10 +575,18 @@
             var isFile = Store.isFileProtocol();
 
             check('页面协议：' + location.protocol, true);
-            check('articles-data.js 已载入', Array.isArray(embedded) && embedded.length > 0,
-                'window.WJ_ARTICLES = ' + (embedded ? '[' + embedded.length + ']' : String(embedded)));
-            check('BY_ID 索引已建立', !!byId && Object.keys(byId).length > 0);
-            if (!Array.isArray(embedded) || !embedded.length) return Promise.resolve();
+            // 条数由仓库内容决定（可以是 0 篇）：这里校验"数据装载正常、索引严格对应"，
+            // 而不是"必须非空"——否则清空博客就会让这一节变红。
+            check('articles-data.js 已载入', Array.isArray(embedded),
+                'window.WJ_ARTICLES = ' + (Array.isArray(embedded) ? '[' + embedded.length + ']' : String(embedded)));
+            check('BY_ID 索引与列表一一对应',
+                !!byId && embedded.every(function (a) { return byId[a.id] === a; }) &&
+                    Object.keys(byId).length === embedded.length,
+                '列表 ' + embedded.length + ' / 索引 ' + (byId ? Object.keys(byId).length : 'undefined'));
+            if (!embedded.length) {
+                skip('嵌入文章内容检查', '仓库里还没有文章（0 篇），与内容相关的检查跳过');
+                return Promise.resolve();
+            }
 
             var allHaveBody = embedded.every(function (a) { return typeof a.body === 'string' && a.body.length > 0; });
             check('每篇嵌入文章都有正文', allHaveBody);

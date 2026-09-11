@@ -48,6 +48,8 @@ t('代码块保留语言', /class="lang-js"/.test(ed('```js\nlet a=1\n```')), ed
 t('列表保留', ed('- a\n- b').includes('<li>a</li>'));
 t('表格已展平', !ed('| a |\n|---|\n| 1 |').includes('table-wrap'), ed('| a |\n|---|\n| 1 |'));
 t('公式保留 data-tex', /data-tex="a\^2"/.test(ed('$a^2$')), ed('$a^2$'));
+// 公式必须是原子节点：否则光标能进到公式内部改字，而回读只认 data-tex，改动会被丢掉
+t('公式是原子节点（编辑器里不能直接改字）', ed('$a$').includes('contenteditable="false"'), ed('$a$'));
 t('图片保留', ed('![x](articles/img/a.png)').includes('src="articles/img/a.png"'));
 t('脚注区不发进编辑器', !ed('a[^1]\n\n[^1]: n').includes('footnotes'), ed('a[^1]\n\n[^1]: n'));
 t('任务框保留可编辑文本', ed('- [x] done').includes('done'));

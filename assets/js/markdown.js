@@ -126,7 +126,11 @@
                 if (end === -1) { out += esc(delim); s = s.slice(delim.length); continue; }
                 var tex = s.slice(delim.length, end);
                 var cls = isDouble ? MATH_BLOCK_CLASS : MATH_INLINE_CLASS;
-                out += '<span class="math-tex ' + cls + '" data-tex="' + escAttr(tex) + '">' + esc(delim + tex + delim) + '</span>';
+                // contenteditable="false"：公式是原子节点，编辑器里只能整块选中或点开弹窗编辑。
+                // 少了它，光标能进到公式内部改字，而回读 Markdown 只认 data-tex，
+                // 用户敲进去的字符会在保存时被静默丢弃（块级公式一直带这个标记，行内漏了）。
+                out += '<span class="math-tex ' + cls + '" data-tex="' + escAttr(tex) + '" contenteditable="false">' +
+                    esc(delim + tex + delim) + '</span>';
                 s = s.slice(end + delim.length);
                 continue;
             }
