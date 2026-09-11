@@ -182,15 +182,17 @@
                 if (!list.length) return Promise.resolve();
                 var online = list.filter(function (a) { return a.source === 'repo'; }).length;
                 return UI.confirm('删除 ' + list.length + ' 篇文章',
-                    '文章会立刻从列表里消失，并在下一次「打包发布 → 本地落地」时从 articles/ 移除。' +
-                    (online ? '其中 ' + online + ' 篇是线上文章，需要走一次发布才会在线上消失。' : '') +
+                    '文章会立刻从列表里消失。' +
+                    (online ? '其中 ' + online + ' 篇在公开站点上也有：浏览器改不了仓库文件，' +
+                        '要在「发布」视图执行一次落地命令并提交，线上才会消失。' : '') +
                     '删除后可在「发布」视图撤销。', '确认删除')
                     .then(function (yes) {
                         if (!yes) return;
                         return list.reduce(function (p, a) {
                             return p.then(function () { return Store.deleteArticle(a.id); });
                         }, Promise.resolve()).then(function () {
-                            UI.toast('已删除 ' + list.length + ' 篇（可在「发布」视图撤销）', 'ok', 3200);
+                            UI.toast('已删除 ' + list.length + ' 篇：' +
+                                (online ? '去「发布」视图复制落地命令' : '可在「发布」视图撤销'), 'ok', 4200);
                             return ctx.refresh();
                         });
                     });

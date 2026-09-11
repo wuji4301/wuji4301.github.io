@@ -1,5 +1,6 @@
-// KaTeX 端到端校验：直接加载 vendor/katex/katex.min.js，把示例文章里的
-// 每一条公式都真排一遍，确保示例内容不会在页面上显示成红色的语法错误。
+// KaTeX 端到端校验：直接加载 vendor/katex/katex.min.js，把仓库文章里的每一条公式
+// 都真排一遍，确保内容不会在页面上显示成红色的语法错误；另有一份内置样本，
+// 保证「Markdown 取公式 → KaTeX 排版」这条闭环在空仓库下也被覆盖。
 // 用法: node tools/test-katex.mjs
 import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
@@ -83,24 +84,50 @@ t('math.js 声明的宏都能排版', declared.every((m) => {
 
 // 3) 示例文章里的真实公式
 console.log('\n== 示例文章公式 ==');
-const index = JSON.parse(await readFile(resolve(ROOT, 'articles/index.json'), 'utf8'));
-for (const entry of index.articles) {
-  const art = JSON.parse(await readFile(resolve(ROOT, 'articles', entry.file), 'utf8'));
-  const html = MD.render(art.body || '');
+
+/** 从 Markdown 正文里提取出渲染器交给 KaTeX 的原始 tex（与页面同一条路径） */
+function extractMath(body) {
+  const html = MD.render(body || '');
   const spans = [...html.matchAll(/<span class="math-tex math-inline" data-tex="([^"]*)"/g)].map((m) => [m[1], false]);
   const blocks = [...html.matchAll(/<div class="math-tex math-block" data-tex="([^"]*)"[^>]*>/g)].map((m) => [m[1], true]);
-  const all = spans.concat(blocks);
-  if (!all.length) {
-    console.log(`  --   《${art.title.slice(0, 16)}…》正文不含公式（该项不适用）`);
-  } else {
-    t(`《${art.title.slice(0, 16)}…》解析出公式`, true, '数量 ' + all.length);
-  }
+  return spans.concat(blocks);
+}
+
+function checkMath(all) {
   all.forEach(([raw, disp]) => {
     const tex = raw.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'");
     const err = tryRender(tex, disp);
     t('  ' + (disp ? '[块级] ' : '[行内] ') + tex.replace(/\s+/g, ' ').slice(0, 52), err === null, err);
   });
 }
+
+const index = JSON.parse(await readFile(resolve(ROOT, 'articles/index.json'), 'utf8'));
+for (const entry of (index.articles || [])) {
+  const art = JSON.parse(await readFile(resolve(ROOT, 'articles', entry.file), 'utf8'));
+  const all = extractMath(art.body);
+  if (!all.length) {
+    console.log(`  --   《${art.title.slice(0, 16)}…》正文不含公式（该项不适用）`);
+  } else {
+    t(`《${art.title.slice(0, 16)}…》解析出公式`, true, '数量 ' + all.length);
+  }
+  checkMath(all);
+}
+
+// 3b) 内置样本：仓库文章随时可能增删，这一段保证「Markdown 取公式 → KaTeX 排版」
+// 这条闭环永远被测到，不会因为博客被清空而静默失去覆盖。
+console.log('\n== 内置样本（解析 → 排版闭环） ==');
+const SAMPLE = [
+  '# 公式样本', '',
+  '行内：$E = mc^{2}$ 与 $\\frac{a}{b}$。', '',
+  '块级：', '',
+  '$$', '\\int_{-\\infty}^{+\\infty} e^{-x^{2}} \\,\\mathrm{d}x = \\sqrt{\\pi}', '$$', '',
+  '矩阵：', '',
+  '$$', '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}', '$$'
+].join('\n');
+const sampleAll = extractMath(SAMPLE);
+t('样本解析出行内公式 2 条', sampleAll.filter((x) => !x[1]).length === 2, JSON.stringify(sampleAll.map((x) => x[1])));
+t('样本解析出块级公式 2 条', sampleAll.filter((x) => x[1]).length === 2, JSON.stringify(sampleAll.map((x) => x[1])));
+checkMath(sampleAll);
 
 // 4) 错误公式必须被检出（保证测试本身有效）
 console.log('\n== 反向验证（确保测试能发现问题） ==');

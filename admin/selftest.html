@@ -605,38 +605,41 @@
         }
 
         /* ================================================================
-           7. 示例文章渲染回归
+           7. 仓库文章渲染回归
            ================================================================ */
-        function testDemoArticles() {
-            suite('7 · 示例文章渲染回归');
+        function testRepoArticles() {
+            suite('7 · 仓库文章渲染回归');
             return Store.loadRepoIndex().then(function (list) {
                 if (!list.length) {
-                    skip('示例文章清单', '未加载到 articles/index.json（需通过 http 打开）');
+                    skip('仓库文章清单', 'articles/index.json 里还没有文章，本节跳过');
                     return;
                 }
-                check('清单含示例文章', list.length >= 2, '条数: ' + list.length);
                 return Promise.all(list.map(function (e) { return Store.loadRepoArticle(e); })).then(function (arts) {
+                    arts = arts.filter(Boolean);
+                    check('清单里的文章都能加载出正文', arts.length === list.length,
+                        arts.length + ' / ' + list.length);
                     arts.forEach(function (a) {
+                        var name = '《' + a.title.slice(0, 14) + '…》';
+                        var body = a.body || '';
                         var box = document.createElement('div');
                         box.className = 'prose';
-                        box.innerHTML = MD.render(a.body || '');
-                        check('《' + a.title.slice(0, 14) + '…》渲染出内容',
-                            box.innerHTML.length > 400, '长度: ' + box.innerHTML.length);
-                        check('《' + a.title.slice(0, 14) + '…》含公式',
-                            box.querySelectorAll('.math-tex').length > 0);
-                        check('《' + a.title.slice(0, 14) + '…》含代码块',
-                            !!box.querySelector('.code-block'));
-                        // 目录可提取
-                        var toc = MD.extractTOC(a.body || '');
-                        check('《' + a.title.slice(0, 14) + '…》目录可提取', toc.length >= 2, '目录条数: ' + toc.length);
+                        box.innerHTML = MD.render(body);
+                        // 只断言"渲染路径是否正常工作"。正文里有没有公式、有没有代码块
+                        // 由作者决定，不能当失败条件——否则写一篇纯文字文章就会被判红。
+                        check(name + '渲染出内容', box.innerHTML.length > 0 && box.children.length > 0,
+                            '长度: ' + box.innerHTML.length);
+                        var heads = (body.match(/^##\s/gm) || []).length;
+                        var toc = MD.extractTOC(body);
+                        check(name + '目录可提取', toc.length >= Math.min(2, heads),
+                            '目录 ' + toc.length + ' 条 / 二级标题 ' + heads + ' 个');
                         return MATH.renderIn(box).then(function (r) {
-                            check('《' + a.title.slice(0, 14) + '…》公式排版无失败', r.failed === 0,
+                            check(name + '公式排版无失败', r.failed === 0,
                                 '失败 ' + r.failed + ' / 共 ' + (r.rendered + r.failed));
                         });
                     });
                 });
             }).catch(function (err) {
-                check('示例文章加载无异常', false, String(err));
+                check('仓库文章加载无异常', false, String(err));
             });
         }
 
@@ -702,7 +705,7 @@
             document.getElementById('fixture').innerHTML = '';
 
             var chain = Promise.resolve();
-            var steps = [testMarkdown, testMath, testConvert, testStore, testEditor, testImportExport, testExportPDF, testEmbedded, testDemoArticles, testUtils, cleanup];
+            var steps = [testMarkdown, testMath, testConvert, testStore, testEditor, testImportExport, testExportPDF, testEmbedded, testRepoArticles, testUtils, cleanup];
             steps.forEach(function (fn) {
                 chain = chain.then(function () {
                     try {

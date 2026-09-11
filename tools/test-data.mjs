@@ -23,10 +23,15 @@ vm.runInContext(src, sandbox, { filename: 'articles-data.js' });
 console.log('\n== articles-data.js ==');
 t('定义了 window.WJ_ARTICLES', Array.isArray(sandbox.WJ_ARTICLES));
 t('定义了 window.WJ_ARTICLES_BY_ID', sandbox.WJ_ARTICLES_BY_ID && typeof sandbox.WJ_ARTICLES_BY_ID === 'object');
-t('不是空数据', sandbox.WJ_ARTICLES.length > 0, '条数: ' + sandbox.WJ_ARTICLES.length);
 
 const list = sandbox.WJ_ARTICLES;
 const byId = sandbox.WJ_ARTICLES_BY_ID;
+
+// 条数由仓库内容决定（可以是 0），所以这里校验的是"索引与列表严格对应"，
+// 而不是"必须非空"——后者会让清空博客变成一件要改测试的事。
+t('BY_ID 索引与列表一一对应',
+  list.every((a) => byId[a.id] === a) && Object.keys(byId).length === list.length,
+  '列表 ' + list.length + ' / 索引 ' + Object.keys(byId).length);
 
 console.log('\n== 数据完整性 ==');
 for (const a of list) {
@@ -65,7 +70,27 @@ mdSandbox.window.window = mdSandbox.window;
 vm.createContext(mdSandbox);
 vm.runInContext(await readFile(resolve(ROOT, 'assets/js/markdown.js'), 'utf8'), mdSandbox, { filename: 'markdown.js' });
 const MD = mdSandbox.window.WJMarkdown;
-for (const a of list) {
+
+// 仓库空的时候用一份内置样本接着跑：这几项验的是"渲染路径还能用"，
+// 不该因为博客被清空就变成空转。
+const SAMPLE_BODY = [
+  '# 样本标题', '',
+  '一段普通正文，包含 `行内代码`、**加粗**、*斜体* 与行内公式 $a^2 + b^2 = c^2$，',
+  '以及一个链接 [示例](https://example.com)，用来覆盖常见的行内语法。', '',
+  '## 第一节', '',
+  '- 列表项一', '- 列表项二', '',
+  '> 引用一段话。', '',
+  '```js', 'const answer = 42;', '```', '',
+  '## 第二节', '',
+  '$$\n\\int_{0}^{1} x^{2} \\,\\mathrm{d}x = \\frac{1}{3}\n$$', '',
+  '结尾段落，再补一句话让渲染结果足够长，便于断言输出确实成形了。'
+].join('\n');
+
+const renderables = list.length
+  ? list.map((a) => ({ id: a.id, body: a.body }))
+  : [{ id: '(内置样本)', body: SAMPLE_BODY }];
+if (!list.length) console.log('  --   仓库里还没有文章，改用内置样本（本节仍然有效）');
+for (const a of renderables) {
   const html = MD.render(a.body);
   t('  ' + a.id + ' 渲染出内容', html.length > 500, '长度 ' + html.length);
   t('  ' + a.id + ' 渲染出章节标题', /<h2[^>]*>/.test(html), '没有 h2');

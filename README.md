@@ -54,23 +54,25 @@ HTML / CSS / JavaScript，公式引擎 KaTeX 也自托管在 `vendor/`。
 
 ### 删除文章
 
-删除**不区分线上线下**：后台任意文章都能直接删。点删除时只记一个「删除标记」（id），
-文章立刻从列表消失，真正的仓库删除由发布链路完成：
+删除**不区分线上线下**：后台任意文章都能直接删。但浏览器改不了磁盘上的仓库文件，
+所以点删除只是记一个「删除标记」（id）——文章立刻从后台列表消失，**公开站点仍然看得到**，
+直到下面这条命令落地并推送：
 
 ```
 后台删除  →  文章列表 / 编辑器里点「删除」
-打包发布  →  发布中心「打包发布」（删除标记随包携带）
-本地落地  →  node tools/publish.mjs "<下载目录>/articles-publish.json"
+本地落地  →  node tools/publish.mjs --delete <id>[,<id>...]   （「发布」视图里可复制）
 提交发布  →  git add -A && git commit -m "删除文章" && git push
 ```
 
 落地时命中的 id 会被从 `articles/index.json` 剔除、`articles/<id>.json` 删除，
-`articles-data.js` 一并重建。**只删不增也可以**：直接
+`articles-data.js` 一并重建。不想用命令也可以走发布包（标记随包携带）：
 
-```bash
-node tools/publish.mjs --delete <id>[,<id>...] --dry-run   # 先看会删什么
-node tools/publish.mjs --delete <id>[,<id>...]
 ```
+打包发布  →  发布中心「打包发布」下载 articles-publish.json
+本地落地  →  node tools/publish.mjs "<下载目录>/articles-publish.json"
+```
+
+`--delete` 支持一次多个 id，先加 `--dry-run` 可以只看会删什么：
 
 几条约定：
 
@@ -231,15 +233,19 @@ KaTeX 0.16.11 自托管于 `vendor/katex/`（65 个文件，约 1.35 MiB，含 w
 ```bash
 node tools/test-render.mjs     # Markdown 渲染器（88 项，自带极简 DOM 垫片）
 node tools/test-convert.mjs    # HTML ⇄ Markdown 往返（84 项）
-node tools/test-katex.mjs      # 真实 KaTeX 排版全部示例公式（29 项）
+node tools/test-katex.mjs      # 真实 KaTeX 排版仓库文章 + 内置样本公式（28 项）
 node tools/test-css.mjs        # 样式括号/变量/结构/令牌完整性（66 项）
 node tools/test-design.mjs     # WCAG 对比度、阶梯单调性、可访问性细节（63 项）
 node tools/test-assets.mjs     # 资源/脚本/隔离/路径前缀（90 项）
-node tools/test-data.mjs       # 嵌入式数据与 JSON 真源同源（34 项）
+node tools/test-data.mjs       # 嵌入式数据与 JSON 真源同源（13 项）
 node tools/test-publish.mjs    # 发布链路端到端，含删除标记、dry-run 与错误处理（59 项）
+node tools/test-store.mjs      # 数据层：删除标记、刷新后持久化、自愈（21 项，自带 IndexedDB 垫片）
 ```
 
-共 **513 项断言**。`test-publish.mjs` 会完整备份并还原 `articles/`，跑完不留痕迹。
+共 **512 项断言**。`test-publish.mjs` 会完整备份并还原 `articles/`，跑完不留痕迹。
+
+`test-katex.mjs` 与 `test-data.mjs` 的项数随仓库文章数增减（当前仓库为空，故为 28 / 13）；
+其余各项与文章内容无关。`test-store.mjs` 用文件内固定样本注入仓库侧数据，仓库清空也不会变红。
 
 浏览器端全链路自测：直接双击 `admin/selftest.html`。它在真实 DOM + KaTeX + IndexedDB
 环境里验证渲染、存储、编辑器保存回读、导入导出、导出 PDF 与嵌入式数据，并清理

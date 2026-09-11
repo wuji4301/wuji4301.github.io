@@ -284,6 +284,17 @@
             try { history.replaceState(null, '', '#/' + current); } catch (e) { void e; }
         }
 
+        // 后台用 file:// 直接打开，浏览器可能沿用旧脚本。数据层缺少新接口时，
+        // 与其让「删了还在」「发布不生效」这类现象被误判，不如直接说清原因和做法。
+        if (!Store || typeof Store.listDeleted !== 'function') {
+            rootEl.innerHTML = '<div class="notice"><div>' +
+                '<b>浏览器用的是旧版数据层脚本（store.js）。</b><br />' +
+                '这会让删除、发布等操作的行为和你预期的不一致。请强制刷新页面：' +
+                '<b>Ctrl + Shift + R</b>（macOS：<b>Cmd + Shift + R</b>）。' +
+                '</div></div>';
+            return;
+        }
+
         rootEl.innerHTML = '<div class="admin-loading">正在读取本地数据…</div>';
         loadData().then(function () {
             mountView();

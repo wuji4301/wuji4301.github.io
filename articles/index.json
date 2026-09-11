@@ -1,34 +1,5 @@
 {
   "version": 1,
-  "updatedAt": "2026-01-06T10:30:00.000Z",
-  "articles": [
-    {
-      "id": "demo-latex",
-      "slug": "latex-and-markdown-guide",
-      "title": "写作指南：在这个博客里用 Markdown 与 LaTeX",
-      "summary": "本站文章支持 Markdown 全量常用语法与 LaTeX 数学公式。这篇文章同时是一份可对照的示例：行内与块级公式、代码高亮、表格、任务列表、引用、脚注都会在这里出现。",
-      "tags": ["使用说明", "Markdown", "LaTeX"],
-      "cover": "",
-      "format": "markdown",
-      "status": "published",
-      "pinned": true,
-      "createdAt": "2026-01-05T09:00:00.000Z",
-      "updatedAt": "2026-01-05T09:00:00.000Z",
-      "file": "demo-latex.json"
-    },
-    {
-      "id": "demo-workflow",
-      "slug": "local-first-writing-workflow",
-      "title": "这个博客的文章系统是怎么工作的",
-      "summary": "文章数据放在仓库里供所有访客读取，撰写与编辑则完全在浏览器本地进行。本文说明这套「本地优先」结构的设计取舍，以及从写作到发布的具体步骤。",
-      "tags": ["使用说明", "设计笔记"],
-      "cover": "",
-      "format": "markdown",
-      "status": "published",
-      "pinned": false,
-      "createdAt": "2026-01-06T10:30:00.000Z",
-      "updatedAt": "2026-01-06T10:30:00.000Z",
-      "file": "demo-workflow.json"
-    }
-  ]
+  "updatedAt": "2026-09-11T16:25:35.322Z",
+  "articles": []
 }

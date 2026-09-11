@@ -72,9 +72,12 @@
                 '</section>' +
 
                 '<section class="admin-section" data-role="pending" hidden>' +
-                '<header><div><h2>待同步删除</h2><div class="sub">已从后台移除，落地并推送后会从 <code>articles/</code> 消失。</div></div>' +
+                '<header><div><h2>待同步删除</h2><div class="sub">已从后台移除，但还没有落到仓库里。</div></div>' +
                 '<div class="admin-actions"><button class="btn btn-ghost btn-sm" data-role="restoreAll" type="button">全部恢复</button></div></header>' +
-                '<div class="body"><ul class="health-list" data-role="pendingList"></ul></div>' +
+                '<div class="body">' +
+                '<div class="cmd-list" style="margin-bottom:12px"><div data-role="pendingCmd"></div></div>' +
+                '<ul class="health-list" data-role="pendingList"></ul>' +
+                '</div>' +
                 '</section>' +
 
                 '<section class="admin-section">' +
@@ -106,8 +109,21 @@
 
             function renderPending() {
                 var ids = (A.state.deleted || []).slice();
-                if (!ids.length) { pendingSection.hidden = true; pendingList.innerHTML = ''; return; }
+                var cmdBox = q('[data-role="pendingCmd"]');
+                if (!ids.length) {
+                    pendingSection.hidden = true;
+                    pendingList.innerHTML = '';
+                    if (cmdBox) cmdBox.innerHTML = '';
+                    return;
+                }
                 pendingSection.hidden = false;
+                // 浏览器改不了仓库文件：把「让删除生效」的确切命令摆在眼前，不用去下载发布包
+                if (cmdBox) {
+                    cmdBox.innerHTML = step('让删除生效',
+                        '删除只记在本地，公开站点读的是仓库文件，所以<b>落地并推送之前线上仍然看得到</b>。' +
+                        '这条命令不需要发布包，直接把下面的 id 从 <code>articles/</code> 移除：',
+                        'node tools/publish.mjs --delete ' + ids.join(','));
+                }
                 // 标题要回仓库清单里查：这些文章已经不在合并列表里了
                 Store.loadRepoIndex().then(function (list) {
                     var meta = {};
