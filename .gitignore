@@ -1,0 +1,15 @@
+# 本地产物与临时文件（公开站点本身不需要忽略任何东西——
+# admin/ 与 tools/ 是要提交进仓库的本地工具，只是不部署；
+# 由 tools/deploy.mjs 的白名单保证它们不会上线。）
+
+# 部署产物
+/deploy/
+
+# 管理系统导出的发布包（下载后若放到仓库根目录，别提交进来）
+/articles-publish.json
+
+# 系统与编辑器杂项
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.log

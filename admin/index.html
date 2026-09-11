@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>管理系统 · 无极博客</title>
+    <meta name="description" content="本地文章管理系统（仅作者本机使用，不部署到服务器）" />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#101114" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23101114'/%3E%3Ctext x='50' y='71' font-size='58' font-weight='600' text-anchor='middle' fill='%23f2f2f2' font-family='PingFang SC,Microsoft YaHei,sans-serif'%3E%E6%97%A0%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../assets/css/site.css" />
+    <link rel="stylesheet" href="../assets/css/articles.css" />
+    <link rel="stylesheet" href="admin.css" />
+    <script>
+        // 防首屏闪烁（FOUC）：在 <body> 解析前定好主题
+        (function () {
+            try {
+                var saved = localStorage.getItem('wj-theme');
+                var sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', saved || (sysDark ? 'dark' : 'light'));
+            } catch (e) {}
+        })();
+    </script>
+</head>
+<body>
+    <div class="bg-fx no-grid" aria-hidden="true"></div>
+    <a class="skip-link" href="#adminMain">跳到主要内容</a>
+
+    <div class="admin-app">
+        <!-- 侧边栏：各视图用 hash 路由切换（#/overview 等） -->
+        <aside class="admin-side" id="adminSide">
+            <div class="admin-side-head">
+                <a class="brand" href="../index.html">
+                    <span class="mark">无J</span>
+                    <span>无极</span>
+                </a>
+                <span class="admin-side-tag">本地后台</span>
+            </div>
+
+            <nav class="admin-nav" aria-label="后台导航">
+                <div class="admin-nav-group">内容</div>
+                <a class="admin-nav-link" data-view="overview" href="#/overview"><span class="admin-nav-icon" aria-hidden="true">◎</span>概览</a>
+                <a class="admin-nav-link" data-view="articles" href="#/articles"><span class="admin-nav-icon" aria-hidden="true">¶</span>文章</a>
+                <a class="admin-nav-link" data-view="images" href="#/images"><span class="admin-nav-icon" aria-hidden="true">▣</span>图片库</a>
+                <div class="admin-nav-group">发布</div>
+                <a class="admin-nav-link" data-view="publish" href="#/publish"><span class="admin-nav-icon" aria-hidden="true">↑</span>发布中心</a>
+                <a class="admin-nav-link" data-view="settings" href="#/settings"><span class="admin-nav-icon" aria-hidden="true">⚙</span>设置</a>
+                <div class="admin-nav-group">跳转</div>
+                <a class="admin-nav-link" href="editor.html"><span class="admin-nav-icon" aria-hidden="true">✎</span>写新文章</a>
+                <a class="admin-nav-link" href="selftest.html"><span class="admin-nav-icon" aria-hidden="true">✓</span>浏览器自测</a>
+                <a class="admin-nav-link" href="../index.html"><span class="admin-nav-icon" aria-hidden="true">↗</span>公开站点</a>
+                <a class="admin-nav-link" href="../articles.html"><span class="admin-nav-icon" aria-hidden="true">↗</span>公开列表</a>
+            </nav>
+
+            <div class="admin-side-foot">
+                <span class="badge badge-local">仅本机 · 不部署</span>
+                <p>文章与图片保存在浏览器 IndexedDB，改动后需「打包发布 → 本地落地」才会出现在公开站点。</p>
+            </div>
+        </aside>
+
+        <div class="admin-scrim" id="adminScrim" aria-hidden="true"></div>
+
+        <!-- 主区：顶栏 + 视图容器 -->
+        <div class="admin-main">
+            <header class="admin-top">
+                <div class="admin-top-lead">
+                    <button class="admin-menu-btn" id="adminMenuBtn" type="button" aria-label="打开导航" aria-expanded="false" aria-controls="adminSide">☰</button>
+                    <div class="admin-crumb">
+                        <b id="crumbTitle">概览</b>
+                        <span id="crumbSub"></span>
+                    </div>
+                </div>
+                <div class="admin-top-actions">
+                    <button class="btn btn-ghost btn-sm" id="refreshBtn" type="button">刷新</button>
+                    <a class="btn btn-primary btn-sm" href="editor.html">写新文章</a>
+                    <button class="theme-toggle" id="themeToggle" aria-label="切换主题" title="切换深浅色">☾</button>
+                </div>
+            </header>
+
+            <main class="admin-content" id="adminMain">
+                <div class="admin-view" id="viewRoot"></div>
+            </main>
+        </div>
+    </div>
+
+    <script src="../articles-data.js" data-wj-asset-base="../"></script>
+    <script src="../assets/js/store.js"></script>
+    <script src="../assets/js/markdown.js"></script>
+    <script src="../assets/js/math.js"></script>
+    <script src="../assets/js/ui.js"></script>
+    <script src="../assets/js/site.js"></script>
+    <script src="../assets/js/export-pdf.js"></script>
+    <script src="js/shell.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/articles.js"></script>
+    <script src="js/images.js"></script>
+    <script src="js/publish.js"></script>
+    <script src="js/settings.js"></script>
+</body>
+</html>

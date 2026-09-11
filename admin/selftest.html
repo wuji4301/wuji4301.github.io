@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>自测 · 本地管理系统</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23101114'/%3E%3Ctext x='50' y='71' font-size='58' font-weight='600' text-anchor='middle' fill='%23f2f2f2' font-family='PingFang SC,Microsoft YaHei,sans-serif'%3E%E6%97%A0%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../assets/css/site.css" />
+    <link rel="stylesheet" href="../assets/css/articles.css" />
+    <style>
+        /* 自测页专属：只保留真正页内的微调，其余交给 articles.css 的 .test-head /
+           .summary / .suite / .case 等统一样式 */
+        body { padding-bottom: 60px; }
+        .test-head { padding-top: clamp(24px, 5vh, 40px); }
+    </style>
+</head>
+<body>
+    <div class="bg-fx no-grid" aria-hidden="true"></div>
+
+    <nav class="nav" id="nav">
+        <a class="brand" href="../index.html">
+            <span class="mark">无J</span>
+            <span>无极</span>
+        </a>
+        <div class="nav-links">
+            <a href="index.html">管理系统</a>
+            <a href="editor.html">编辑器</a>
+            <a href="selftest.html">自测</a>
+            <a href="../index.html">公开站点</a>
+        </div>
+        <div class="nav-right">
+            <button class="theme-toggle" id="themeToggle" aria-label="切换主题" title="切换深浅色">☾</button>
+        </div>
+    </nav>
+
+    <main class="wrap">
+        <header class="test-head">
+            <h1>浏览器端自测</h1>
+            <p>
+                这个页面在真实浏览器里跑一遍文章系统的全链路：Markdown 渲染、LaTeX 排版、图片转存、
+                IndexedDB 读写、编辑器保存与回读、导入导出、嵌入式数据。
+                它创建的测试数据会写入本地库并随后清理，不影响你已有的文章。
+            </p>
+        </header>
+
+        <div class="summary" id="summary">
+            <span class="legend-label">结果</span>
+            <span class="pass">通过 <b id="nPass">0</b></span>
+            <span class="fail">失败 <b id="nFail">0</b></span>
+            <span class="skip">跳过 <b id="nSkip">0</b></span>
+            <span class="legend" id="stateText">准备中…</span>
+        </div>
+
+        <div id="results"></div>
+
+        <div class="run-again">
+            <button class="btn btn-primary" id="rerun" type="button">重新运行</button>
+            <a class="btn btn-ghost" href="index.html">返回管理系统</a>
+            <a class="btn btn-ghost" href="editor.html">去编辑器</a>
+        </div>
+    </main>
+
+    <!-- 编辑器挂载点（用于验证编辑器真实初始化） -->
+    <div id="fixture"></div>
+
+    <script src="../articles-data.js" data-wj-asset-base="../"></script>
+    <script src="../assets/js/store.js"></script>
+    <script src="../assets/js/markdown.js"></script>
+    <script src="../assets/js/math.js"></script>
+    <script src="../assets/js/convert.js"></script>
+    <script src="../assets/js/ui.js"></script>
+    <script src="../assets/js/site.js"></script>
+    <script src="../assets/js/editor.js"></script>
+    <script src="../assets/js/export-pdf.js"></script>
+    <script>
+    (function () {
+        'use strict';
+        var Store = window.WJStore;
+        var MD = window.WJMarkdown;
+        var CV = window.WJConvert;
+        var UI = window.WJUI;
+        var MATH = window.WJMath;
+        var PDF = window.WJExportPDF;
+
+        var results = document.getElementById('results');
+        var counts = { pass: 0, fail: 0, skip: 0 };
+        var createdArticleIds = [];
+        var createdImageIds = [];
+        var currentSuite = null;
+
+        function suite(title) {
+            currentSuite = document.createElement('section');
+            currentSuite.className = 'suite';
+            var h = document.createElement('h2');
+            h.textContent = title;
+            currentSuite.appendChild(h);
+            results.appendChild(currentSuite);
+        }
+
+        function addCase(status, name, detail) {
+            var row = document.createElement('div');
+            row.className = 'case ' + status;
+            var mark = document.createElement('span');
+            mark.className = 'mark';
+            mark.textContent = status === 'pass' ? '✓' : (status === 'fail' ? '✗' : '–');
+            var body = document.createElement('div');
+            body.className = 'name';
+            body.textContent = name;
+            if (detail) {
+                var pre = document.createElement('pre');
+                pre.textContent = String(detail).slice(0, 1400);
+                body.appendChild(pre);
+            }
+            row.appendChild(mark);
+            row.appendChild(body);
+            (currentSuite || results).appendChild(row);
+            counts[status]++;
+            updateSummary();
+        }
+
+        function updateSummary() {
+            document.getElementById('nPass').textContent = counts.pass;
+            document.getElementById('nFail').textContent = counts.fail;
+            document.getElementById('nSkip').textContent = counts.skip;
+        }
+
+        /** 断言：ok 为真 → pass */
+        function check(name, ok, detail) {
+            addCase(ok ? 'pass' : 'fail', name, ok ? '' : detail);
+            return ok;
+        }
+
+        function skip(name, why) { addCase('skip', name, why); }
+
+        function eq(name, actual, expected) {
+            var a = String(actual), e = String(expected);
+            return check(name, a === e, '实际: ' + a.slice(0, 400) + '\n期望包含/等于: ' + e.slice(0, 400));
+        }
+
+        function contains(name, haystack, needle) {
+            var h = String(haystack);
+            return check(name, h.indexOf(needle) !== -1, '未找到：' + needle + '\n实际: ' + h.slice(0, 500));
+        }
+
+        function notContains(name, haystack, needle) {
+            var h = String(haystack);
+            return check(name, h.indexOf(needle) === -1, '不应出现：' + needle + '\n实际: ' + h.slice(0, 500));
+        }
+
+        function matches(name, str, re) {
+            return check(name, re.test(String(str)), '不匹配 ' + re + '\n实际: ' + String(str).slice(0, 500));
+        }
+
+        /* ================================================================
+           1. Markdown 渲染（真实浏览器 DOM）
+           ================================================================ */
+        function testMarkdown() {
+            suite('1 · Markdown 渲染');
+
+            var h = MD.render('# 标题\n\n## 二级');
+            contains('标题生成 id 与锚点', h, 'id="标题"');
+            contains('锚点链接存在', h, 'class="h-anchor"');
+
+            contains('粗体', MD.render('**b**'), '<strong>b</strong>');
+            contains('斜体', MD.render('*i*'), '<em>i</em>');
+            contains('删除线', MD.render('~~d~~'), '<del>d</del>');
+            contains('行内代码', MD.render('`c`'), '<code>c</code>');
+            contains('链接带 noopener', MD.render('[t](https://a.com)'), 'rel="noopener noreferrer"');
+
+            var code = MD.render('```js\nconst a = "x";\n```');
+            contains('代码块语言', code, 'data-lang="js"');
+            contains('代码高亮关键字', code, 'tok-kw');
+            contains('代码高亮字符串', code, 'tok-str');
+            contains('代码复制按钮', code, 'data-copy');
+
+            var table = MD.render('| a | b |\n| --- | ---: |\n| 1 | 2 |');
+            contains('表格生成', table, '<table>');
+            contains('表格右对齐', table, 'text-align:right');
+
+            contains('任务列表', MD.render('- [x] done'), 'class="task done"');
+            contains('引用', MD.render('> q'), '<blockquote>');
+            contains('分割线', MD.render('---'), '<hr>');
+            contains('脚注', MD.render('a[^1]\n\n[^1]: n'), 'class="fn-ref"');
+            contains('图片', MD.render('![a](x.png)'), '<img src="x.png"');
+
+            // 安全
+            notContains('script 被转义', MD.render('<script>alert(1)<\/script>'), '<script>');
+            notContains('javascript: 被丢弃', MD.render('[x](javascript:alert(1))'), 'javascript:');
+            notContains('onerror 未逃逸', MD.render('![a](x" onerror="alert(1))'), 'onerror="alert(1)"');
+
+            // 公式占位（尚未排版）
+            var math = MD.render('公式 $a^2$ 与块级：\n\n$$\nE=mc^2\n$$');
+            contains('行内公式占位', math, 'math-tex math-inline');
+            contains('块级公式占位', math, 'math-tex math-block');
+            contains('公式保留 data-tex', math, 'data-tex="a^2"');
+            notContains('货币不当公式', MD.render('花费 $5 元'), 'math-inline');
+        }
+
+        /* ================================================================
+           2. KaTeX 排版（真实加载 vendor/katex）
+           ================================================================ */
+        function testMath() {
+            suite('2 · LaTeX 排版（自托管 KaTeX）');
+            return MATH.load().then(function () {
+                check('KaTeX 成功加载', MATH.isReady(), 'vendor/katex/katex.min.js 未就绪');
+                var html = MATH.renderString('\\frac{a}{b}', false);
+                check('renderString 返回 HTML', !!html && html.indexOf('katex') !== -1, html);
+                check('复杂公式可排版',
+                    !!MATH.renderString('\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}', true),
+                    '积分公式排版失败');
+                check('矩阵环境可排版',
+                    !!MATH.renderString('\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}', true),
+                    '矩阵排版失败');
+                check('自定义宏可用', !!MATH.renderString('\\RR^n', false), '宏 \\RR 未定义');
+                check('语法错误不抛异常', MATH.renderString('\\frac{1}{', false) !== undefined);
+
+                var box = document.createElement('div');
+                box.className = 'prose';
+                box.innerHTML = MD.render('行内 $E=mc^2$\n\n$$\n\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}\n$$');
+                return MATH.renderIn(box).then(function (r) {
+                    check('renderIn 统计正确', r.rendered === 2, JSON.stringify(r));
+                    eq('容器内公式均标记已完成', box.querySelectorAll('.math-tex[data-tex-done]').length, 2);
+                    eq('未就绪样式已移除', box.querySelectorAll('.math-tex:not(.math-ready)').length, 0);
+                    contains('KaTeX 结构已生成', box.innerHTML, 'katex-html');
+                    notContains('原始源码不在可见文本中（块级）',
+                        box.querySelector('.math-block').textContent.replace(/\s/g, ''),
+                        '\\sum_{i=1}^{n}');
+                });
+            });
+        }
+
+        /* ================================================================
+           3. 编辑器 HTML ⇄ Markdown
+           ================================================================ */
+        function testConvert() {
+            suite('3 · 富文本 ⇄ Markdown 转换');
+
+            function rt(md) {
+                var box = document.createElement('div');
+                box.innerHTML = CV.mdToEditorHtml(md);
+                return CV.htmlToMd(box);
+            }
+
+            var cases = [
+                ['段落', '这是一段文字。'],
+                ['粗斜体', '这是 **粗体** 与 *斜体*。'],
+                ['标题', '## 二级标题'],
+                ['无序列表', '- 甲\n- 乙'],
+                ['有序列表', '1. 甲\n2. 乙'],
+                ['嵌套列表', '- 甲\n  - 甲一'],
+                ['任务列表', '- [x] 已完成\n- [ ] 待办'],
+                ['引用', '> 引用内容'],
+                ['代码块', '```js\nconst a = 1;\n```'],
+                ['表格', '| a | b |\n| --- | --- |\n| 1 | 2 |'],
+                ['行内公式', '公式 $a^2+b^2$ 成立。'],
+                ['块级公式', '$$\nE = mc^2\n$$'],
+                ['图片', '![说明](articles/img/x.png)'],
+                ['链接', '[官网](https://example.com)'],
+                ['分割线', '上\n\n---\n\n下'],
+                ['混合', '# 标题\n\n正文。\n\n- 要点\n\n> 引用\n\n```py\nprint(1)\n```']
+            ];
+            cases.forEach(function (c) {
+                var once = rt(c[1]);
+                var twice = rt(once);
+                check(c[0] + '：往返幂等',
+                    once.replace(/\s+/g, ' ').trim() === twice.replace(/\s+/g, ' ').trim(),
+                    '一次: ' + once + '\n二次: ' + twice);
+            });
+
+            contains('粗体结构保留', rt('**关键**'), '**关键**');
+            contains('行内公式保留', rt('$a^2$'), '$a^2$');
+            contains('块级公式保留 $$', rt('$$\nE=mc^2\n$$'), '$$');
+            contains('表格数据保留', rt('| a |\n| --- |\n| 1 |'), '| 1 |');
+            contains('任务状态保留', rt('- [x] a'), '[x] a');
+            contains('代码语言保留', rt('```python\nx=1\n```'), 'python');
+
+            check('富文本 HTML 已清洗 script',
+                CV.cleanForEditor('<p>a<script>bad()<\/script></p>').indexOf('script') === -1,
+                CV.cleanForEditor('<p>a<script>bad()<\/script></p>'));
+            check('富文本 HTML 已清洗 onclick',
+                CV.cleanForEditor('<p onclick="x()">a</p>').indexOf('onclick') === -1);
+            check('表格外壳已展平', CV.mdToEditorHtml('| a |\n| --- |\n| 1 |').indexOf('table-wrap') === -1);
+            check('代码块外壳已展平', CV.mdToEditorHtml('```js\nlet a=1\n```').indexOf('code-block') === -1);
+            check('公式原子节点标记保留',
+                CV.mdToEditorHtml('$a$').indexOf('contenteditable="false"') !== -1,
+                CV.mdToEditorHtml('$a$'));
+        }
+
+        /* ================================================================
+           4. 本地存储（IndexedDB）
+           ================================================================ */
+        function testStore() {
+            suite('4 · 本地存储 IndexedDB');
+            return Store.listLocalArticles().then(function (before) {
+                var testArticle = Store.normalize({
+                    id: 'test-selftest-' + Date.now().toString(36),
+                    title: '自测文章 · 标题',
+                    summary: '自测摘要',
+                    tags: ['自测', '临时'],
+                    status: 'draft',
+                    body: '# 自测\n\n公式 $x^2$ 与 **粗体**。\n'
+                });
+                return Store.saveArticle(testArticle).then(function (saved) {
+                    createdArticleIds.push(saved.id);
+                    check('文章写入成功', !!saved.id, JSON.stringify(saved));
+                    eq('写入后 id 一致', saved.id, testArticle.id);
+                    eq('状态保持 draft', saved.status, 'draft');
+                    matches('updatedAt 是 ISO 时间', saved.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+
+                    return Store.getLocalArticle(saved.id).then(function (back) {
+                        check('回读成功', !!back, '回读为 null');
+                        eq('标题一致', back.title, '自测文章 · 标题');
+                        contains('正文一致', back.body, '公式 $x^2$');
+                        check('标签是数组', Array.isArray(back.tags) && back.tags.length === 2, JSON.stringify(back.tags));
+
+                        return Store.listLocalArticles().then(function (after) {
+                            check('本地文章数增加 1', after.length === before.length + 1,
+                                before.length + ' → ' + after.length);
+                            return testImages();
+                        });
+                    });
+                });
+            });
+        }
+
+        function testImages() {
+            // 造一张 1x1 PNG，验证 Blob 存取与 blob: URL 解析
+            var pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+            var bin = atob(pngB64);
+            var bytes = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            var blob = new Blob([bytes], { type: 'image/png' });
+            var id = Store.genId('img');
+
+            return Store.addImage(blob, { id: id, name: 'selftest.png', type: 'image/png', width: 1, height: 1 })
+                .then(function (rec) {
+                    createdImageIds.push(rec.id);
+                    eq('图片记录已保存', rec.id, id);
+                    eq('图片大小记录正确', rec.size, blob.size);
+                    return Store.getImage(id);
+                })
+                .then(function (back) {
+                    check('图片回读成功', !!back && back.blob instanceof Blob, '回读失败');
+                    check('图片类型正确', back.type === 'image/png', back.type);
+                    return Store.imageURL(id);
+                })
+                .then(function (url) {
+                    check('解析为 blob: URL', /^blob:/.test(url), url);
+                    return Store.imageURLCached(id) === url ? true : false;
+                })
+                .then(function (cached) {
+                    check('blob URL 已缓存（避免重复创建）', cached === true);
+                    return Store.stats();
+                })
+                .then(function (s) {
+                    check('统计包含图片', s.images >= 1, JSON.stringify(s));
+                    check('统计图片字节数 > 0', s.imageBytes > 0, JSON.stringify(s));
+                });
+        }
+
+        /* ================================================================
+           5. 编辑器（真实实例化 + 保存回读）
+           ================================================================ */
+        function testEditor() {
+            suite('5 · 编辑器实例与保存');
+            var host = document.getElementById('fixture');
+            var ed;
+            try {
+                ed = new window.WJEditor(host, { article: Store.normalize({ title: '自测草稿' }) });
+            } catch (err) {
+                check('编辑器可实例化', false, err && err.stack ? err.stack : String(err));
+                return Promise.resolve();
+            }
+            check('编辑器可实例化', true);
+            check('工具栏已渲染', host.querySelectorAll('.tb-btn').length >= 15,
+                '按钮数: ' + host.querySelectorAll('.tb-btn').length);
+            check('富文本区存在', !!host.querySelector('#ed-rich[contenteditable="true"]'));
+            check('源码区存在', !!host.querySelector('#ed-source'));
+            check('元信息字段存在', !!host.querySelector('#ed-title') && !!host.querySelector('#ed-tags'));
+            eq('标题字段已回填', host.querySelector('#ed-title').value, '自测草稿');
+
+            // 切换模式
+            ed.switchMode('source');
+            eq('切换到源码模式', ed.mode, 'source');
+            ed.switchMode('rich');
+            eq('切回富文本模式', ed.mode, 'rich');
+
+            // 直接写内容（绕开 execCommand，只验证保存链路）
+            var md = [
+                '# 自测正文',
+                '',
+                '段落含 **粗体**、`代码` 与行内公式 $a^2+b^2=c^2$。',
+                '',
+                '$$\n\\int_0^1 x\\,dx = \\frac{1}{2}\n$$',
+                '',
+                '- 列表项一',
+                '- 列表项二',
+                '',
+                '> 引用一句',
+                '',
+                '| 列 | 值 |',
+                '| --- | ---: |',
+                '| a | 1 |'
+            ].join('\n');
+            ed.setEditorHtml(CV.mdToEditorHtml(md));
+            host.querySelector('#ed-title').value = '自测：完整保存链路';
+            host.querySelector('#ed-tags').value = '自测, 保存';
+            ed.$.summary.value = '这段摘要由自测脚本写入';
+
+            return ed.save().then(function (saved) {
+                createdArticleIds.push(saved.id);
+                check('保存返回对象', !!saved && !!saved.id, JSON.stringify(saved));
+                eq('标题已保存', saved.title, '自测：完整保存链路');
+                eq('标签已拆分', (saved.tags || []).join('/'), '自测/保存');
+                contains('正文含标题', saved.body, '# 自测正文');
+                contains('正文含粗体', saved.body, '**粗体**');
+                contains('正文含行内公式', saved.body, '$a^2+b^2=c^2$');
+                contains('正文含块级公式', saved.body, '$$');
+                contains('正文含列表', saved.body, '- 列表项一');
+                contains('正文含引用', saved.body, '> 引用一句');
+                contains('正文含表格', saved.body, '| a | 1 |');
+                matches('slug 已生成', saved.slug, /^[\w\u3400-\u9fff-]+$/);
+
+                return Store.getArticle(saved.id);
+            }).then(function (back) {
+                check('回读保存的文章', !!back);
+                eq('回读标题一致', back.title, '自测：完整保存链路');
+                // 再用阅读页的方式渲染一遍，确认公式与结构都能出来
+                var box = document.createElement('div');
+                box.className = 'prose';
+                box.innerHTML = MD.render(back.body);
+                eq('渲染出 2 个公式', box.querySelectorAll('.math-tex').length, 2);
+                check('渲染出表格', !!box.querySelector('table'));
+                check('渲染出列表', !!box.querySelector('ul li'));
+                check('渲染出引用', !!box.querySelector('blockquote'));
+                return MATH.renderIn(box).then(function () {
+                    eq('公式全部排版完成', box.querySelectorAll('.math-ready').length, 2);
+                });
+            }).catch(function (err) {
+                check('编辑保存链路无异常', false, err && err.stack ? err.stack : String(err));
+            });
+        }
+
+        /* ================================================================
+           6. 导入 / 导出
+           ================================================================ */
+        function testImportExport() {
+            suite('6 · 导入与导出');
+            var obj = {
+                id: 'test-import-' + Date.now().toString(36),
+                title: '导入的文章',
+                slug: 'imported-post',
+                summary: '来自 JSON 导入',
+                tags: ['导入'],
+                body: '导入的正文 $x=1$',
+                format: 'markdown',
+                status: 'published'
+            };
+            return Store.importJSON({ articles: [obj] }).then(function (list) {
+                check('清单格式导入成功', list.length === 1, JSON.stringify(list));
+                createdArticleIds.push(list[0].id);
+                eq('导入后标题正确', list[0].title, '导入的文章');
+
+                var obj2 = {
+                    id: 'test-import2-' + Date.now().toString(36),
+                    title: '单篇导入',
+                    body: '正文',
+                    format: 'markdown'
+                };
+                return Store.importJSON(obj2);
+            }).then(function (list2) {
+                check('单篇格式导入成功', list2.length === 1);
+                createdArticleIds.push(list2[0].id);
+
+                return Store.listAll();
+            }).then(function (res) {
+                var found = res.articles.filter(function (a) { return a.id === obj.id; })[0];
+                check('合并列表包含导入文章', !!found);
+                check('导出对象字段齐全', (function () {
+                    var e = Store.toExportObject(found);
+                    return e.id && e.title && e.slug && e.body != null && e.format;
+                })(), JSON.stringify(Store.toExportObject(found)));
+
+                var index = Store.buildRepoIndex([found], true);
+                check('清单结构正确', Array.isArray(index.articles) && index.articles.length === 1);
+                contains('清单内联正文', JSON.stringify(index), '导入的正文');
+                return Store.listAll();
+            }).then(function (res) {
+                if (res.repoCount > 0) {
+                    var repo = res.articles.filter(function (a) { return a.source === 'repo'; })[0];
+                    check('仓库文章可读取', true);
+                    check('仓库文章含正文', !!(repo && repo.body), JSON.stringify(repo && { id: repo.id, len: (repo.body || '').length }));
+                    check('仓库文章标题非空', !!(repo && repo.title), '标题为空');
+                } else {
+                    skip('仓库文章可读取', '未读到 articles/index.json（HTTP 下会读到；file:// 下请看下一项嵌入式数据检查）');
+                }
+            });
+        }
+
+        /* ================================================================
+           6.6 导出 PDF（打印层）
+           ================================================================ */
+        function testExportPDF() {
+            suite('6.6 · 导出 PDF（打印层）');
+
+            if (!check('导出 PDF 模块已载入', !!PDF && typeof PDF.render === 'function',
+                'window.WJExportPDF 不存在（assets/js/export-pdf.js 未加载？）')) {
+                return Promise.resolve();
+            }
+            check('print 与 clear 可用', typeof PDF.print === 'function' && typeof PDF.clear === 'function');
+
+            var imgId = createdImageIds[0];
+            var md = '# 导出测试\n\n正文 **加粗**，行内公式 $a^2+b^2=c^2$。\n\n```js\nconst a = 1;\n```\n' +
+                (imgId ? '\n![本地图](img://' + imgId + ')\n' : '');
+
+            return PDF.render({
+                site: '无极',
+                title: '导出 PDF 测试文章',
+                summary: '这是摘要。',
+                tags: ['自测', 'PDF'],
+                meta: ['2026-01-01 09:00', Store.countWords(md) + ' 字'],
+                bodyHTML: MD.render(md),
+                url: 'https://example.com/article.html?id=x',
+                assetURL: Store.assetURL,
+                imageResolver: Store.imageURL,
+                docTitle: '导出 PDF 测试文章'
+            }).then(function (root) {
+                check('打印容器挂到了 body 上', !!root && root.parentNode === document.body && root.id === 'wjPrintRoot');
+                eq('容器固定亮色主题', root.getAttribute('data-theme'), 'light');
+                eq('容器对读屏器隐藏', root.getAttribute('aria-hidden'), 'true');
+                eq('标题进入容器', root.querySelector('.wj-print-title').textContent, '导出 PDF 测试文章');
+                eq('标签全部渲染', root.querySelectorAll('.wj-print-tags .tag').length, 2);
+                contains('元信息渲染', root.querySelector('.wj-print-meta').textContent, '2026-01-01 09:00');
+                contains('摘要渲染', root.querySelector('.wj-print-summary').textContent, '这是摘要。');
+                contains('正文渲染', root.querySelector('.wj-print-body').innerHTML, '<strong>加粗</strong>');
+                contains('代码块保留标记', root.querySelector('.wj-print-body').innerHTML, 'data-lang="js"');
+                contains('页脚保留出处', root.querySelector('.wj-print-foot').textContent, 'example.com/article.html');
+                matches('页脚含导出时间', root.querySelector('.wj-print-foot').textContent, /导出时间 \d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
+                check('公式已排版（不是源码）',
+                    root.querySelectorAll('.wj-print-body .katex').length > 0, 'KaTeX 结构缺失');
+
+                var imgs = root.querySelectorAll('.wj-print-body img');
+                if (imgId) {
+                    check('img:// 已解析成可打印的地址',
+                        imgs.length === 1 && /^blob:/.test(imgs[0].getAttribute('src') || ''),
+                        imgs.length ? '实际 src: ' + imgs[0].getAttribute('src') : '图片被丢掉了');
+                    check('懒加载属性已移除', imgs.length === 1 && !imgs[0].hasAttribute('loading'));
+                } else {
+                    skip('img:// 已解析成可打印的地址', '本套件之前没有创建测试图片');
+                }
+
+                // 相对路径要按站点前缀补全：admin/ 下的相对路径与站点根不是一回事
+                return PDF.render({
+                    title: '前缀测试',
+                    bodyHTML: '<p><img src="articles/img/x.png" alt=""></p>',
+                    assetURL: Store.assetURL
+                }).then(function (r2) {
+                    eq('相对图片路径补上站点前缀',
+                        r2.querySelector('img').getAttribute('src'), Store.assetURL('articles/img/x.png'));
+                    eq('重复调用只保留一个容器', document.querySelectorAll('#wjPrintRoot').length, 1);
+                    PDF.clear();
+                    check('clear 移除打印容器', !document.body.contains(r2));
+                });
+            });
+        }
+
+        /* ================================================================
+           6.5 嵌入式数据（决定 file:// 下能否读到文章）
+           ================================================================ */
+        function testEmbedded() {
+            suite('6.5 · 嵌入式文章数据（file:// 可用性）');
+            var embedded = window.WJ_ARTICLES;
+            var byId = window.WJ_ARTICLES_BY_ID;
+            var isFile = Store.isFileProtocol();
+
+            check('页面协议：' + location.protocol, true);
+            check('articles-data.js 已载入', Array.isArray(embedded) && embedded.length > 0,
+                'window.WJ_ARTICLES = ' + (embedded ? '[' + embedded.length + ']' : String(embedded)));
+            check('BY_ID 索引已建立', !!byId && Object.keys(byId).length > 0);
+            if (!Array.isArray(embedded) || !embedded.length) return Promise.resolve();
+
+            var allHaveBody = embedded.every(function (a) { return typeof a.body === 'string' && a.body.length > 0; });
+            check('每篇嵌入文章都有正文', allHaveBody);
+            check('嵌入文章都是 published', embedded.every(function (a) { return a.status === 'published'; }));
+
+            // 关键：file:// 下必须能通过统一入口读到文章
+            return Store.listAll().then(function (res) {
+                var fromEmbedded = res.articles.filter(function (a) { return a.source === 'repo'; });
+                if (isFile) {
+                    check('file:// 下通过 store 读到文章', fromEmbedded.length >= embedded.length,
+                        '读到 ' + fromEmbedded.length + ' / 嵌入 ' + embedded.length);
+                    var a = fromEmbedded[0];
+                    check('file:// 下文章含正文', !!(a && a.body && a.body.length > 100),
+                        a ? '正文长度 ' + (a.body || '').length : '无文章');
+                    var box = document.createElement('div');
+                    box.className = 'prose';
+                    box.innerHTML = MD.render((a && a.body) || '');
+                    check('file:// 下正文可渲染', box.innerHTML.length > 500, '长度 ' + box.innerHTML.length);
+                } else {
+                    check('HTTP 下读取文章（走 fetch 或回退嵌入数据）', res.repoCount >= embedded.length,
+                        'repoCount=' + res.repoCount + ' / 嵌入 ' + embedded.length);
+                }
+            });
+        }
+
+        /* ================================================================
+           7. 示例文章渲染回归
+           ================================================================ */
+        function testDemoArticles() {
+            suite('7 · 示例文章渲染回归');
+            return Store.loadRepoIndex().then(function (list) {
+                if (!list.length) {
+                    skip('示例文章清单', '未加载到 articles/index.json（需通过 http 打开）');
+                    return;
+                }
+                check('清单含示例文章', list.length >= 2, '条数: ' + list.length);
+                return Promise.all(list.map(function (e) { return Store.loadRepoArticle(e); })).then(function (arts) {
+                    arts.forEach(function (a) {
+                        var box = document.createElement('div');
+                        box.className = 'prose';
+                        box.innerHTML = MD.render(a.body || '');
+                        check('《' + a.title.slice(0, 14) + '…》渲染出内容',
+                            box.innerHTML.length > 400, '长度: ' + box.innerHTML.length);
+                        check('《' + a.title.slice(0, 14) + '…》含公式',
+                            box.querySelectorAll('.math-tex').length > 0);
+                        check('《' + a.title.slice(0, 14) + '…》含代码块',
+                            !!box.querySelector('.code-block'));
+                        // 目录可提取
+                        var toc = MD.extractTOC(a.body || '');
+                        check('《' + a.title.slice(0, 14) + '…》目录可提取', toc.length >= 2, '目录条数: ' + toc.length);
+                        return MATH.renderIn(box).then(function (r) {
+                            check('《' + a.title.slice(0, 14) + '…》公式排版无失败', r.failed === 0,
+                                '失败 ' + r.failed + ' / 共 ' + (r.rendered + r.failed));
+                        });
+                    });
+                });
+            }).catch(function (err) {
+                check('示例文章加载无异常', false, String(err));
+            });
+        }
+
+        /* ================================================================
+           8. 工具函数
+           ================================================================ */
+        function testUtils() {
+            suite('8 · 工具函数');
+            eq('slugify 中文', Store.slugify('你好 世界'), '你好-世界');
+            matches('slugify 去特殊字符', Store.slugify('a/b?c=d'), /^a-?b-?c-?d$/);
+            check('slugify 兜底', Store.slugify('!!!', 'fallback').length > 0, Store.slugify('!!!', 'fallback'));
+            check('genId 唯一', Store.genId('t') !== Store.genId('t'));
+            check('countWords 中文按字计', Store.countWords('一二三四五') >= 5, Store.countWords('一二三四五'));
+            check('countWords 英文按词计', Store.countWords('hello world foo') >= 3, Store.countWords('hello world foo'));
+            check('readingMinutes 至少 1', Store.readingMinutes('短') === 1);
+            matches('fmtDate 格式', Store.fmtDate('2026-01-05T09:00:00.000Z'), /^\d{4}-\d{2}-\d{2}$/);
+            eq('fmtDate 空值', Store.fmtDate(''), '');
+            check('plainText 去标记', Store.plainText('# 标题\n\n**粗体** [链接](x)').indexOf('#') === -1,
+                Store.plainText('# 标题\n\n**粗体** [链接](x)'));
+            check('PLAIN 保留文字', Store.plainText('# 标题').indexOf('标题') !== -1);
+            check('UI.toast 可用', typeof UI.toast === 'function');
+            check('UI.copy 可用', typeof UI.copy === 'function');
+            eq('fmtBytes', UI.fmtBytes(2048), '2.0 KB');
+        }
+
+        /* ================================================================
+           清理
+           ================================================================ */
+        function cleanup() {
+            suite('9 · 清理测试数据');
+            var p = Promise.resolve();
+            createdArticleIds.forEach(function (id) {
+                p = p.then(function () { return Store.deleteArticle(id); });
+            });
+            createdImageIds.forEach(function (id) {
+                p = p.then(function () { return Store.deleteImage(id); });
+            });
+            return p.then(function () {
+                return Store.listLocalArticles();
+            }).then(function (left) {
+                var leaked = left.filter(function (a) { return createdArticleIds.indexOf(a.id) !== -1; });
+                check('测试文章已清理', leaked.length === 0, '残留: ' + JSON.stringify(leaked.map(function (a) { return a.id; })));
+                return Store.listImages();
+            }).then(function (imgs) {
+                var leaked = imgs.filter(function (i) { return createdImageIds.indexOf(i.id) !== -1; });
+                check('测试图片已清理', leaked.length === 0, '残留: ' + JSON.stringify(leaked.map(function (i) { return i.id; })));
+            });
+        }
+
+        /* ================================================================
+           运行
+           ================================================================ */
+        function run() {
+            results.innerHTML = '';
+            counts = { pass: 0, fail: 0, skip: 0 };
+            createdArticleIds = [];
+            createdImageIds = [];
+            updateSummary();
+            document.getElementById('stateText').textContent = '运行中…';
+            var t0 = Date.now();
+
+            // 清理上一次可能残留的 fixture
+            document.getElementById('fixture').innerHTML = '';
+
+            var chain = Promise.resolve();
+            var steps = [testMarkdown, testMath, testConvert, testStore, testEditor, testImportExport, testExportPDF, testEmbedded, testDemoArticles, testUtils, cleanup];
+            steps.forEach(function (fn) {
+                chain = chain.then(function () {
+                    try {
+                        var r = fn();
+                        return r && r.then ? r : Promise.resolve();
+                    } catch (err) {
+                        addCase('fail', fn.name + ' 抛出异常', err && err.stack ? err.stack : String(err));
+                    }
+                });
+            });
+
+            return chain.then(function () {
+                var ms = Date.now() - t0;
+                document.getElementById('stateText').textContent =
+                    (counts.fail === 0 ? '全部通过' : '存在失败') + ' · 用时 ' + ms + ' ms';
+            }, function (err) {
+                document.getElementById('stateText').textContent = '运行异常：' + err;
+            });
+        }
+
+        document.getElementById('rerun').addEventListener('click', run);
+        WJSite.initTheme();
+        WJSite.initNavActive();
+        run();
+    })();
+    </script>
+</body>
+</html>

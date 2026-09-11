@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>文章 · 无极</title>
+    <meta name="description" content="无极的博客文章" />
+    <meta name="theme-color" content="#101114" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="文章 · 无极" />
+    <meta property="og:description" content="无极的博客文章" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23101114'/%3E%3Ctext x='50' y='71' font-size='58' font-weight='600' text-anchor='middle' fill='%23f2f2f2' font-family='PingFang SC,Microsoft YaHei,sans-serif'%3E%E6%97%A0%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="assets/css/site.css" />
+    <link rel="stylesheet" href="assets/css/articles.css" />
+    <!-- 公式样式随页面一起到位（data-wj-katex 让 math.js 跳过重复注入），
+         并预取 KaTeX 脚本，让公式在正文渲染完时就已就绪，不再二次重排 -->
+    <link rel="stylesheet" href="vendor/katex/katex.min.css" data-wj-katex />
+    <link rel="preload" as="script" href="vendor/katex/katex.min.js" />
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('wj-theme');
+                var sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', saved || (sysDark ? 'dark' : 'light'));
+            } catch (e) {}
+        })();
+    </script>
+</head>
+<body>
+    <a class="skip-link" href="#mainContent">跳到主要内容</a>
+    <div class="bg-fx" aria-hidden="true"></div>
+    <div class="progress" id="readingProgress"></div>
+
+    <nav class="nav" id="nav">
+        <a class="brand" href="index.html">
+            <span class="mark">无J</span>
+            <span>无极</span>
+        </a>
+        <div class="nav-links">
+            <a href="index.html">首页</a>
+            <a href="articles.html">文章</a>
+            <a href="index.html#contact">联系</a>
+        </div>
+        <div class="nav-right">
+            <button class="theme-toggle" id="themeToggle" aria-label="切换主题" title="切换深浅色">☾</button>
+            <button class="nav-toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false" aria-controls="mobileMenu">☰</button>
+        </div>
+    </nav>
+    <div class="mobile-menu" id="mobileMenu">
+        <a href="index.html">首页</a>
+        <a href="articles.html">文章</a>
+        <a href="index.html#contact">联系</a>
+    </div>
+
+    <main class="wrap article-page" id="mainContent">
+        <header class="article-head" id="articleHead" hidden>
+            <div class="article-tags" id="articleTags"></div>
+            <h1 id="articleTitle"></h1>
+            <div class="article-sub" id="articleSub"></div>
+        </header>
+
+        <div class="article-layout">
+            <article class="prose" id="articleBody" aria-live="polite"></article>
+            <aside class="toc" id="toc" hidden aria-label="目录">
+                <h4>目录</h4>
+                <nav id="tocNav"></nav>
+            </aside>
+        </div>
+
+        <div class="article-foot" id="articleFoot" hidden>
+            <div class="post-tags" id="footTags"></div>
+            <div class="article-actions">
+                <button class="btn btn-ghost btn-sm" id="copyLinkBtn" type="button">复制链接</button>
+                <button class="btn btn-ghost btn-sm" id="copyMdBtn" type="button">复制 Markdown</button>
+                <button class="btn btn-ghost btn-sm" id="pdfBtn" type="button"
+                    title="打开打印对话框，把「目标」选成「另存为 PDF」">导出 PDF</button>
+                <button class="btn btn-ghost btn-sm" id="toTopBtn" type="button">回到顶部</button>
+                <a class="btn btn-ghost btn-sm" href="articles.html">返回列表</a>
+            </div>
+        </div>
+
+        <!-- 加载 / 未找到 -->
+        <div class="empty" id="stateBox">
+            <p id="stateText">正在加载文章…</p>
+            <div class="cta" id="stateActions" style="justify-content:center;margin-top:18px" hidden>
+                <a class="btn btn-primary" href="articles.html">浏览全部文章</a>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="wrap footer-inner">
+            <div class="f-brand">
+                <a class="brand" href="index.html">
+                    <span class="mark">无J</span>
+                    <span>无极</span>
+                </a>
+                <p>路在脚下</p>
+            </div>
+            <nav class="f-links" aria-label="页脚导航">
+                <a href="index.html">首页</a>
+                <a href="articles.html">文章</a>
+                <a href="https://github.com/wuji4301" target="_blank" rel="noopener">GitHub</a>
+            </nav>
+        </div>
+    </footer>
+
+    <button class="to-top" id="toTop" aria-label="返回顶部">↑</button>
+
+    <!-- 文章数据：用 script 标签载入，file:// 直接打开也能读到。
+         defer 让这几个脚本并行下载、按序执行，不再一个等一个。 -->
+    <script defer src="articles-data.js"></script>
+    <script defer src="assets/js/blog.js"></script>
+    <script defer src="assets/js/markdown.js"></script>
+    <script defer src="assets/js/math.js"></script>
+    <script defer src="assets/js/ui.js"></script>
+    <script defer src="assets/js/site.js"></script>
+    <script defer src="assets/js/export-pdf.js"></script>
+    <script>
+        // defer 脚本在 DOMContentLoaded 之前按序执行完，因此这里各模块都已就位
+        document.addEventListener('DOMContentLoaded', function () {
+            'use strict';
+            var Blog = window.WJBlog;
+            var MD = window.WJMarkdown;
+            var UI = window.WJUI;
+
+            // 公式引擎先开始下载：等正文渲染完时基本已就绪
+            window.WJMath.load();
+
+            var mainEl = document.getElementById('mainContent');
+
+            /** 正文就绪后让整篇淡入（.article-page → .article-ready 的过渡写在 articles.css） */
+            function revealArticle() {
+                // 元素刚从 [hidden] 恢复的那一帧改样式不会触发过渡，等一帧再切到可见
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        mainEl.classList.add('article-ready');
+                    });
+                });
+            }
+
+            WJSite.initCommon();
+
+            var bodyEl = document.getElementById('articleBody');
+            var headEl = document.getElementById('articleHead');
+            var titleEl = document.getElementById('articleTitle');
+            var subEl = document.getElementById('articleSub');
+            var tagsEl = document.getElementById('articleTags');
+            var footEl = document.getElementById('articleFoot');
+            var footTags = document.getElementById('footTags');
+            var tocEl = document.getElementById('toc');
+            var tocNav = document.getElementById('tocNav');
+            var stateBox = document.getElementById('stateBox');
+            var stateText = document.getElementById('stateText');
+            var stateActions = document.getElementById('stateActions');
+
+            function fail(msg, actions) {
+                stateBox.hidden = false;
+                stateText.textContent = msg;
+                stateActions.hidden = !actions;
+            }
+
+            function tagHTML(t) {
+                return '<a class="tag" href="' + Blog.tagURL(t) + '">' + Blog.esc(t) + '</a>';
+            }
+
+            function renderArticle(a) {
+                document.title = a.title + ' · 无极';
+                var desc = a.summary || Blog.plainText(a.body).slice(0, 120);
+                setMeta('name', 'description', desc);
+                setMeta('property', 'og:title', a.title);
+                setMeta('property', 'og:description', desc);
+
+                stateBox.hidden = true;
+                headEl.hidden = false;
+                footEl.hidden = false;
+
+                titleEl.textContent = a.title;
+                tagsEl.innerHTML = a.tags.map(tagHTML).join('');
+                footTags.innerHTML = a.tags.map(tagHTML).join('');
+
+                subEl.innerHTML =
+                    '<span>' + Blog.esc(Blog.fmtDate(a.updatedAt, true)) + '</span>' +
+                    '<span class="dot">·</span><span>' + Blog.wordCount(a) + ' 字</span>' +
+                    '<span class="dot">·</span><span>约 ' + Blog.readMinutes(a) + ' 分钟</span>';
+
+                // 渲染正文并做增强处理：代码高亮、公式排版、目录
+                bodyEl.innerHTML = a.format === 'html' ? a.body : MD.render(a.body || '');
+                WJSite.initCodeCopy(bodyEl);
+                window.WJMath.renderIn(bodyEl).then(function (r) {
+                    if (r && r.failed && !window.WJMath.isReady()) {
+                        console.warn('[文章页] KaTeX 未能加载，公式以源码显示');
+                    }
+                });
+
+                var toc = MD.extractTOC(a.body || '');
+                if (toc.length >= 2) {
+                    tocEl.hidden = false;
+                    tocNav.innerHTML = toc.map(function (t) {
+                        return '<a class="lv' + t.level + '" href="#' + Blog.esc(t.id) + '">' + Blog.esc(t.text) + '</a>';
+                    }).join('');
+                    WJSite.initTOC(bodyEl, tocEl);
+                } else {
+                    tocEl.hidden = true;
+                }
+
+                document.getElementById('copyLinkBtn').onclick = function () {
+                    UI.copy(location.href).then(function (ok) {
+                        UI.toast(ok ? '链接已复制' : '复制失败，请手动复制地址栏', ok ? 'ok' : 'err');
+                    });
+                };
+                document.getElementById('copyMdBtn').onclick = function () {
+                    UI.copy(a.body || '').then(function (ok) {
+                        UI.toast(ok ? 'Markdown 已复制' : '复制失败', ok ? 'ok' : 'err');
+                    });
+                };
+                document.getElementById('pdfBtn').onclick = function () { exportPDF(a); };
+                document.getElementById('toTopBtn').onclick = function () { WJSite.scrollToTop(); };
+
+                revealArticle();
+            }
+
+            /**
+             * 导出 PDF：把页面上已经渲染好的正文交给打印层，再在打印对话框里
+             * 选「另存为 PDF」。公式与图片此时都已就位，直接复用即可。
+             */
+            function exportPDF(a) {
+                window.WJExportPDF.print({
+                    site: '无极',
+                    title: a.title,
+                    summary: a.summary,
+                    cover: a.cover,
+                    tags: a.tags,
+                    meta: [
+                        Blog.fmtDate(a.updatedAt, true),
+                        Blog.wordCount(a) + ' 字',
+                        '约 ' + Blog.readMinutes(a) + ' 分钟'
+                    ],
+                    bodyHTML: bodyEl.innerHTML,
+                    url: location.href
+                }).then(function (ok) {
+                    if (!ok) UI.toast('当前浏览器不支持打印，请用 Ctrl/⌘ + P 手动导出', 'err', 3200);
+                });
+            }
+
+            function setMeta(attr, name, value) {
+                var el = document.querySelector('meta[' + attr + '="' + name + '"]');
+                if (el) el.setAttribute('content', value);
+            }
+
+            /* ------------------------------------------------------ 启动 */
+
+            var q = function (name) {
+                var m = new RegExp('[?&]' + name + '=([^&]+)').exec(location.search);
+                return m ? decodeURIComponent(m[1]) : '';
+            };
+            var key = q('id') || q('slug');
+
+            if (!key) {
+                stateText.textContent = '没有指定文章 id。';
+                stateActions.hidden = false;
+            } else {
+                Blog.get(key).then(function (a) {
+                    if (!a) { fail('没有找到这篇文章（' + key + '）。它可能已被移除或改名。', true); return; }
+                    renderArticle(a);
+                }).catch(function (err) {
+                    fail('加载失败：' + err.message, true);
+                });
+            }
+        });
+    </script>
+</body>
+</html>

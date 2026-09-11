@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# 本地管理系统与开发工具：线上本来就不存在这些文件，
+# 这里再声明一次，避免任何误部署情况下被搜索引擎收录。
+Disallow: /admin/
+Disallow: /tools/
+Disallow: /articles-publish.json
+Disallow: /deploy/
+
+Sitemap: https://wuji4301.github.io/sitemap.xml

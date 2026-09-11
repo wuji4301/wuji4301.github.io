@@ -1,0 +1,95 @@
+// 嵌入式数据（articles-data.js）校验：确认公开页面在 file:// 下真的能取到文章。
+// 用法: node tools/test-data.mjs
+import { readFile } from 'node:fs/promises';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+let pass = 0, fail = 0;
+function t(name, cond, extra) {
+  if (cond) { pass++; console.log('  ok   ' + name); }
+  else { fail++; console.log('  FAIL ' + name + (extra ? '\n         ' + extra : '')); }
+}
+
+// 1) 加载生成的脚本（模拟浏览器里 <script> 的执行环境：只有 window/global）
+const src = await readFile(resolve(ROOT, 'articles-data.js'), 'utf8');
+const sandbox = { console };
+sandbox.window = sandbox;
+vm.createContext(sandbox);
+vm.runInContext(src, sandbox, { filename: 'articles-data.js' });
+
+console.log('\n== articles-data.js ==');
+t('定义了 window.WJ_ARTICLES', Array.isArray(sandbox.WJ_ARTICLES));
+t('定义了 window.WJ_ARTICLES_BY_ID', sandbox.WJ_ARTICLES_BY_ID && typeof sandbox.WJ_ARTICLES_BY_ID === 'object');
+t('不是空数据', sandbox.WJ_ARTICLES.length > 0, '条数: ' + sandbox.WJ_ARTICLES.length);
+
+const list = sandbox.WJ_ARTICLES;
+const byId = sandbox.WJ_ARTICLES_BY_ID;
+
+console.log('\n== 数据完整性 ==');
+for (const a of list) {
+  t('  ' + a.id + ' 有正文', typeof a.body === 'string' && a.body.length > 100, '正文长度 ' + (a.body || '').length);
+  t('  ' + a.id + ' 有 id/slug/title', !!(a.id && a.slug && a.title));
+  t('  ' + a.id + ' 在 BY_ID 索引中', !!byId[a.id]);
+  t('  ' + a.id + ' 状态为 published', a.status === 'published');
+  t('  ' + a.id + ' 不含本地快照字段', a.repoSnapshot === undefined);
+}
+
+console.log('\n== 与文章清单一致 ==');
+const indexJson = JSON.parse(await readFile(resolve(ROOT, 'articles/index.json'), 'utf8'));
+const entries = Array.isArray(indexJson) ? indexJson : indexJson.articles;
+t('清单条数与嵌入数据一致', entries.length === list.length, entries.length + ' vs ' + list.length);
+for (const e of entries) {
+  const a = byId[e.id];
+  t('  ' + e.id + ' 标题一致', a && a.title === e.title, a ? a.title + ' vs ' + e.title : '缺失');
+}
+
+// 2) 单篇 JSON 与嵌入数据必须同源（避免改了 JSON 忘了重新生成）
+console.log('\n== 单篇 JSON 与嵌入数据同源 ==');
+for (const e of entries) {
+  const file = e.file || (e.id + '.json');
+  const single = JSON.parse(await readFile(resolve(ROOT, 'articles', file), 'utf8'));
+  const embedded = byId[e.id];
+  t('  ' + e.id + ' 正文一致（无需重新生成）', single.body === embedded.body,
+    '文件 ' + (single.body || '').length + ' 字符 / 嵌入 ' + (embedded.body || '').length + ' 字符');
+  t('  ' + e.id + ' 标题一致', single.title === embedded.title);
+  t('  ' + e.id + ' updatedAt 一致', single.updatedAt === embedded.updatedAt);
+}
+
+// 3) 渲染器能吃掉嵌入的正文（与页面同一条解析路径）
+console.log('\n== 嵌入正文可渲染 ==');
+const mdSandbox = { console, window: {} };
+mdSandbox.window.window = mdSandbox.window;
+vm.createContext(mdSandbox);
+vm.runInContext(await readFile(resolve(ROOT, 'assets/js/markdown.js'), 'utf8'), mdSandbox, { filename: 'markdown.js' });
+const MD = mdSandbox.window.WJMarkdown;
+for (const a of list) {
+  const html = MD.render(a.body);
+  t('  ' + a.id + ' 渲染出内容', html.length > 500, '长度 ' + html.length);
+  t('  ' + a.id + ' 渲染出章节标题', /<h2[^>]*>/.test(html), '没有 h2');
+  const toc = MD.extractTOC(a.body);
+  t('  ' + a.id + ' 可提取目录', toc.length >= 2, '目录 ' + toc.length + ' 条');
+}
+
+// 4) 公开页面走 blog.js 阅读层，后台页面走 store.js 本地库；数据脚本都必须先于数据层引入
+console.log('\n== 页面接线 ==');
+for (const page of ['index.html', 'articles.html', 'article.html']) {
+  const html = await readFile(resolve(ROOT, page), 'utf8');
+  const dataIdx = html.indexOf('articles-data.js');
+  const blogIdx = html.indexOf('js/blog.js');
+  t('  ' + page + ' 引入数据脚本且在 blog.js 之前', dataIdx !== -1 && blogIdx !== -1 && dataIdx < blogIdx,
+    'dataIdx=' + dataIdx + ' blogIdx=' + blogIdx);
+}
+for (const page of ['admin/index.html', 'admin/editor.html', 'admin/selftest.html']) {
+  const html = await readFile(resolve(ROOT, page), 'utf8');
+  // admin/ 子目录里的路径带 ../ 前缀，这里用宽松匹配
+  const dataIdx = html.indexOf('articles-data.js');
+  const storeIdx = html.indexOf('js/store.js');
+  t('  ' + page + ' 引入数据脚本且在 store.js 之前', dataIdx !== -1 && storeIdx !== -1 && dataIdx < storeIdx,
+    'dataIdx=' + dataIdx + ' storeIdx=' + storeIdx);
+}
+
+console.log(`\n结果: ${pass} 通过, ${fail} 失败\n`);
+process.exit(fail ? 1 : 0);

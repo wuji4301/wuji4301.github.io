@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>文章 · 无极</title>
+    <meta name="description" content="无极的文章列表：技术笔记、数学推导与随手记录" />
+    <meta name="theme-color" content="#101114" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="文章 · 无极" />
+    <meta property="og:description" content="无极的文章列表：技术笔记、数学推导与随手记录" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23101114'/%3E%3Ctext x='50' y='71' font-size='58' font-weight='600' text-anchor='middle' fill='%23f2f2f2' font-family='PingFang SC,Microsoft YaHei,sans-serif'%3E%E6%97%A0%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="assets/css/site.css" />
+    <link rel="stylesheet" href="assets/css/articles.css" />
+    <script>
+        // 防首屏闪烁（FOUC）：在 <body> 解析前定好主题
+        (function () {
+            try {
+                var saved = localStorage.getItem('wj-theme');
+                var sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', saved || (sysDark ? 'dark' : 'light'));
+            } catch (e) {}
+        })();
+    </script>
+</head>
+<body>
+    <a class="skip-link" href="#mainContent">跳到主要内容</a>
+    <div class="bg-fx" aria-hidden="true"></div>
+    <div class="progress" id="readingProgress"></div>
+
+    <nav class="nav" id="nav">
+        <a class="brand" href="index.html">
+            <span class="mark">无J</span>
+            <span>无极</span>
+        </a>
+        <div class="nav-links">
+            <a href="index.html">首页</a>
+            <a href="articles.html">文章</a>
+            <a href="index.html#contact">联系</a>
+        </div>
+        <div class="nav-right">
+            <button class="theme-toggle" id="themeToggle" aria-label="切换主题" title="切换深浅色">☾</button>
+            <button class="nav-toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false" aria-controls="mobileMenu">☰</button>
+        </div>
+    </nav>
+    <div class="mobile-menu" id="mobileMenu">
+        <a href="index.html">首页</a>
+        <a href="articles.html">文章</a>
+        <a href="index.html#contact">联系</a>
+    </div>
+
+    <main class="wrap" id="mainContent">
+        <header class="page-head reveal">
+            <div class="head-row">
+                <div>
+                    <h1>文章</h1>
+                    <p class="sub">技术笔记、数学推导与随手记录。支持 Markdown、LaTeX 公式、代码高亮与图片。</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- 搜索 / 排序 -->
+        <div class="list-toolbar">
+            <div class="search-box">
+                <input class="input" id="searchInput" type="search" placeholder="搜索标题、摘要、标签或正文…" aria-label="搜索文章">
+            </div>
+            <select class="select" id="sortSelect" aria-label="排序方式">
+                <option value="updated">最近更新</option>
+                <option value="created">创建时间</option>
+                <option value="title">标题</option>
+            </select>
+        </div>
+
+        <div class="tag-filter" id="tagFilter" hidden></div>
+
+        <div class="post-grid" id="postGrid" aria-live="polite"></div>
+
+        <!-- 空态 -->
+        <div class="empty" id="emptyBox" hidden>
+            <p id="emptyText">还没有文章。</p>
+        </div>
+
+        <div class="notice" id="repoWarn" hidden style="margin-top:26px">
+            <div>
+                文章数据来源于 <code>articles/index.json</code>。若这里没有列出文章，请确认仓库
+                <code>articles/</code> 目录下存在清单文件与对应的文章 JSON。
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="wrap footer-inner">
+            <div class="f-brand">
+                <a class="brand" href="index.html">
+                    <span class="mark">无J</span>
+                    <span>无极</span>
+                </a>
+                <p>路在脚下</p>
+            </div>
+            <nav class="f-links" aria-label="页脚导航">
+                <a href="index.html">首页</a>
+                <a href="articles.html">文章</a>
+                <a href="https://github.com/wuji4301" target="_blank" rel="noopener">GitHub</a>
+            </nav>
+        </div>
+    </footer>
+
+    <button class="to-top" id="toTop" aria-label="返回顶部">↑</button>
+
+    <script src="articles-data.js"></script>
+    <script src="assets/js/blog.js"></script>
+    <script src="assets/js/site.js"></script>
+    <script>
+        (function () {
+            'use strict';
+            var Blog = window.WJBlog;
+
+            WJSite.initCommon();
+
+            var grid = document.getElementById('postGrid');
+            var emptyBox = document.getElementById('emptyBox');
+            var emptyText = document.getElementById('emptyText');
+            var tagFilter = document.getElementById('tagFilter');
+            var searchInput = document.getElementById('searchInput');
+            var sortSelect = document.getElementById('sortSelect');
+            var repoWarn = document.getElementById('repoWarn');
+
+            var all = [];             // 全部已发布文章
+            var activeTags = [];      // 选中的标签（多选）
+            var query = '';
+            var firstPaint = true;    // 仅首屏播放卡片入场动画，之后即时切换
+            var cardSeq = 0;
+
+            function currentList() {
+                var q = query.trim().toLowerCase();
+                var tags = activeTags;
+                var list = all.filter(function (a) {
+                    if (tags.length && !tags.every(function (t) { return a.tags.indexOf(t) !== -1; })) return false;
+                    if (!q) return true;
+                    return Blog.haystack(a).indexOf(q) !== -1;
+                });
+                var mode = sortSelect.value;
+                list.sort(function (x, y) {
+                    if (!!y.pinned !== !!x.pinned) return (y.pinned ? 1 : 0) - (x.pinned ? 1 : 0);
+                    if (mode === 'title') return x.title.localeCompare(y.title, 'zh-Hans-CN');
+                    if (mode === 'created') return String(y.createdAt).localeCompare(String(x.createdAt));
+                    return String(y.updatedAt).localeCompare(String(x.updatedAt));
+                });
+                return list;
+            }
+
+            function renderTagFilter() {
+                var counts = {};
+                all.forEach(function (a) {
+                    a.tags.forEach(function (t) { counts[t] = (counts[t] || 0) + 1; });
+                });
+                var tags = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+                if (!tags.length) { tagFilter.hidden = true; return; }
+                tagFilter.hidden = false;
+                tagFilter.innerHTML = tags.map(function (t) {
+                    return '<button type="button" class="tag' + (activeTags.indexOf(t) !== -1 ? ' on' : '') +
+                        '" data-tag="' + Blog.esc(t) + '">' + Blog.esc(t) +
+                        ' <span style="opacity:.6">' + counts[t] + '</span></button>';
+                }).join('');
+            }
+
+            function render() {
+                var list = currentList();
+                cardSeq = 0;
+                grid.innerHTML = list.map(function (a) {
+                    return Blog.cardHTML(a, {
+                        animate: firstPaint,
+                        delay: Math.min(cardSeq++, 8) * 40
+                    });
+                }).join('');
+                firstPaint = false;
+                emptyBox.hidden = list.length > 0;
+                if (!list.length) {
+                    emptyText.textContent = all.length
+                        ? '没有匹配的文章，换个关键词或取消标签筛选试试。'
+                        : '还没有文章。把文章 JSON 放进 articles/ 目录并更新 articles/index.json 后即可显示。';
+                }
+                renderTagFilter();
+            }
+
+            tagFilter.addEventListener('click', function (e) {
+                var b = e.target.closest('[data-tag]');
+                if (!b) return;
+                var t = b.dataset.tag;
+                var i = activeTags.indexOf(t);
+                if (i === -1) activeTags.push(t); else activeTags.splice(i, 1);
+                render();
+            });
+
+            var searchTimer = 0;
+            searchInput.addEventListener('input', function () {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(function () { query = searchInput.value; render(); }, 120);
+            });
+            sortSelect.addEventListener('change', render);
+
+            // 支持 ?tag=xxx 直达筛选
+            var m = /[?&]tag=([^&]+)/.exec(location.search);
+            if (m) { activeTags = [decodeURIComponent(m[1])]; }
+
+            Blog.list().then(function (posts) {
+                all = posts;
+                repoWarn.hidden = all.length > 0;
+                render();
+            }).catch(function (err) {
+                grid.innerHTML = '';
+                emptyBox.hidden = false;
+                emptyText.textContent = '加载失败：' + err.message;
+            });
+        })();
+    </script>
+</body>
+</html>
