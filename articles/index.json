@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-12T07:20:54.794Z",
+  "updatedAt": "2026-09-12T12:02:45.598Z",
   "articles": [
     {
       "id": "a-mty0jahx-r9y44e",
       "slug": "图片转文章测试",
       "title": "图片转文章测试",
-      "summary": "这是一篇测试文章",
+      "summary": "这是图片转文章的测试",
       "tags": [
         "测试"
       ],
@@ -15,8 +15,28 @@
       "status": "published",
       "pinned": false,
       "createdAt": "2026-09-12T06:37:27.909Z",
-      "updatedAt": "2026-09-12T07:18:12.094Z",
+      "updatedAt": "2026-09-12T12:01:37.296Z",
       "file": "a-mty0jahx-r9y44e.json"
+    },
+    {
+      "id": "a-mtyc12fl-4nnqew",
+      "slug": "集合子集性质的证明",
+      "title": "集合子集性质的证明",
+      "summary": "依次证明空集是任意集合的子集、子集关系的自反性与传递性，以及双向包含推出集合相等。",
+      "tags": [
+        "集合论",
+        "子集",
+        "数学证明",
+        "空集",
+        "传递性"
+      ],
+      "cover": "articles/img/img-mtyc0vm6-qewrv5.jpg",
+      "format": "markdown",
+      "status": "published",
+      "pinned": false,
+      "createdAt": "2026-09-12T11:59:13.041Z",
+      "updatedAt": "2026-09-12T12:01:37.296Z",
+      "file": "a-mtyc12fl-4nnqew.json"
     },
     {
       "id": "a-mtx68wqc-szh7gt",

@@ -2,7 +2,7 @@
   "id": "a-mty0jahx-r9y44e",
   "slug": "图片转文章测试",
   "title": "图片转文章测试",
-  "summary": "这是一篇测试文章",
+  "summary": "这是图片转文章的测试",
   "tags": [
     "测试"
   ],
@@ -11,6 +11,6 @@
   "status": "published",
   "pinned": false,
   "createdAt": "2026-09-12T06:37:27.909Z",
-  "updatedAt": "2026-09-12T07:18:12.094Z",
+  "updatedAt": "2026-09-12T12:01:37.296Z",
   "body": "![黑底白字显示一条数学公式及三个系数](articles/img/img-mtxzpwz7-4ds0lu.jpg)\n\n$$\n\\frac{1}{\\pi} = 12\\sum_{n=0}^{\\infty}(-1)^{n}\\frac{(6n)!}{(n!)^{3}(3n)!}\\frac{A+Bn}{C^{3n+3/2}}\n$$\n\n$$\nA = 1657145277365 + 212175710912\\sqrt{61}\n$$\n\n$$\nB = 107578229802750 + 13773980892672\\sqrt{61}\n$$\n\n$$\nC = 5280\\left(236674 + 30303\\sqrt{61}\\right)\n$$\n"
 }

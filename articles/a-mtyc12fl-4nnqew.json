@@ -1,0 +1,20 @@
+{
+  "id": "a-mtyc12fl-4nnqew",
+  "slug": "集合子集性质的证明",
+  "title": "集合子集性质的证明",
+  "summary": "依次证明空集是任意集合的子集、子集关系的自反性与传递性，以及双向包含推出集合相等。",
+  "tags": [
+    "集合论",
+    "子集",
+    "数学证明",
+    "空集",
+    "传递性"
+  ],
+  "cover": "articles/img/img-mtyc0vm6-qewrv5.jpg",
+  "format": "markdown",
+  "status": "published",
+  "pinned": false,
+  "createdAt": "2026-09-12T11:59:13.041Z",
+  "updatedAt": "2026-09-12T12:01:37.296Z",
+  "body": "# 子集的性质证明\n\n## ① 证明空集是任意集合的子集。\n\n证明：∀x ∈ ∅ 都有 x ∈ A。\n\n∵ ∀x ∈ ∅ 不成立。∴ 此命题为真命题。证毕。\n\n## ② 证明 A ⊆ A（自反性）。\n\n∀x ∈ A 都有 x ∈ A 显然得证。\n\n## ③ 证明 A ⊆ B，B ⊆ C ⇒ A ⊆ C（传递性）。\n\n由 A ⊆ B ⇒ ∀x ∈ A 都有 x ∈ B。\n\n由 B ⊆ C ⇒ ∀x ∈ B 都有 x ∈ C。\n\n∴ ∀x ∈ A 都有 x ∈ C，∴ A ⊆ C 得证。\n\n## ④ 若 A ⊆ B，B ⊆ A，证明 A = B。\n\nA ⊆ B ⇒ ∀x ∈ A 都有 x ∈ B。\n\nB ⊆ A ⇒ ∀x ∈ B 都有 x ∈ A。\n\nA中任意元素都在B中\n\nB中任意元素都在B中\n\n∴ A = B 得证。\n"
+}
