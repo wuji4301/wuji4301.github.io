@@ -10,6 +10,7 @@
     var UI = A.UI;
     var esc = A.esc;
     var AI = global.WJAI;
+    var LW = global.WJLocalWrite;
 
     function savedTheme() {
         try { return localStorage.getItem('wj-theme') || 'system'; } catch (e) { return 'system'; }
@@ -31,6 +32,118 @@
 
     function row(k, v) {
         return '<li class="health-item"><span class="t">' + esc(k) + '</span><span class="v">' + v + '</span></li>';
+    }
+
+    /** 「写入本地文件夹」区块：授权一次项目根目录，之后一键把文章写进磁盘 */
+    function folderSectionHTML() {
+        if (!LW) return '';
+        var cfg = LW.readConfig();
+        var canWrite = LW.isSupported();
+        return '<section class="admin-section">' +
+            '<header><div><h2>写入本地文件夹</h2>' +
+            '<div class="sub">授权一次项目根目录，之后在「发布」视图点一下就能把文章写进磁盘；' +
+            '提交仍然由你 <code>git</code> 完成。整条链路不涉及账号或 Token。</div></div>' +
+            '<div class="admin-actions"><span class="badge ' + (canWrite ? 'badge-repo' : 'badge-draft') + '" data-role="lw-badge">' +
+            (canWrite ? '检测中' : '不可用') + '</span></div></header>' +
+            '<div class="body">' +
+            (canWrite ? '' : '<div class="notice"><div>' + esc(LW.UNSUPPORTED) + '</div></div>') +
+            '<div class="field"><label for="lwSite">站点地址（可选）</label>' +
+            '<input class="input" id="lwSite" data-role="lw-site" type="url" autocomplete="off" spellcheck="false" ' +
+            'placeholder="https://wuji4301.github.io" value="' + esc(cfg.siteUrl) + '" />' +
+            '<p class="admin-hint">只用于写入成功后给出一个可点开的线上链接；留空就不显示链接。</p></div>' +
+            '<div class="admin-actions">' +
+            '<button class="btn btn-primary btn-sm" data-role="lw-pick" type="button">选择项目文件夹</button>' +
+            '<button class="btn btn-ghost btn-sm" data-role="lw-recheck" type="button">重新授权</button>' +
+            '<button class="btn btn-ghost btn-sm" data-role="lw-save" type="button">保存配置</button>' +
+            '<button class="btn btn-ghost btn-sm" data-role="lw-clear" type="button">撤销授权</button>' +
+            '</div>' +
+            '<p class="admin-hint" data-role="lw-state">第一次点「选择项目文件夹」，选中包含 <code>admin/</code>、' +
+            '<code>articles/</code>、<code>index.html</code> 的那一层（也就是 git 仓库根目录）。</p>' +
+            '<p class="admin-hint">浏览器重启后写入权限会过期，回「发布」视图点一次「一键写入项目文件夹」重新授权即可，' +
+            '不需要再选目录。</p>' +
+            '</div>' +
+            '</section>';
+    }
+
+    /** 接线「写入本地文件夹」区块：选择目录 / 重新授权 / 保存站点地址 / 撤销授权 */
+    function wireFolder(root) {
+        var els = {
+            site: root.querySelector('[data-role="lw-site"]'),
+            badge: root.querySelector('[data-role="lw-badge"]'),
+            state: root.querySelector('[data-role="lw-state"]')
+        };
+        if (!els.site || !LW) return;
+
+        var pickBtn = root.querySelector('[data-role="lw-pick"]');
+        var recheckBtn = root.querySelector('[data-role="lw-recheck"]');
+
+        function save(quiet) {
+            var cfg = LW.writeConfig({ siteUrl: els.site.value });
+            els.site.value = cfg.siteUrl;
+            if (!quiet) UI.toast('站点地址已保存到本机浏览器', 'ok');
+            return cfg;
+        }
+
+        function paint() {
+            return LW.folderState().then(function (info) {
+                if (!info.supported) {
+                    els.badge.className = 'badge badge-draft';
+                    els.badge.textContent = '不可用';
+                    els.state.textContent = LW.UNSUPPORTED;
+                    return;
+                }
+                els.badge.className = 'badge ' + (info.granted ? 'badge-repo' : 'badge-draft');
+                els.badge.textContent = info.granted
+                    ? '已授权 · ' + info.name
+                    : (info.saved ? '待重新授权 · ' + info.name : '未选择文件夹');
+                els.state.textContent = info.saved
+                    ? '当前项目文件夹：' + info.name + (info.granted ? '（可以写入）' : '（权限已过期，写入时会再问一次）')
+                    : '还没有选择项目文件夹。';
+            }).catch(function (err) {
+                els.state.textContent = '读取授权状态失败：' + err.message;
+            });
+        }
+
+        pickBtn.addEventListener('click', function () {
+            if (!LW.isSupported()) { UI.toast(LW.UNSUPPORTED, 'err', 6000); return; }
+            LW.pickDirectory().then(function () {
+                UI.toast('项目文件夹已授权', 'ok');
+                return paint();
+            }).catch(function (err) {
+                if (err && err.name === 'AbortError') return;   // 用户取消，不是错误
+                UI.toast(err.message, 'err', 6000);
+            });
+        });
+
+        recheckBtn.addEventListener('click', function () {
+            LW.savedDirectory().then(function (h) {
+                if (!h) throw new Error('还没有选择项目文件夹，先点「选择项目文件夹」。');
+                return LW.ensurePermission(h, true);
+            }).then(function () {
+                UI.toast('已重新授权', 'ok');
+                return paint();
+            }).catch(function (err) {
+                if (err && err.name === 'AbortError') return;
+                UI.toast(err.message, 'err', 6000);
+            });
+        });
+
+        root.querySelector('[data-role="lw-save"]').addEventListener('click', function () { save(false); });
+        els.site.addEventListener('change', function () { save(true); });
+
+        root.querySelector('[data-role="lw-clear"]').addEventListener('click', function () {
+            UI.confirm('撤销文件夹授权',
+                '撤销后「一键写入项目文件夹」会停止工作，需要重新选择目录。磁盘上的文件不受影响。',
+                '确认撤销').then(function (yes) {
+                if (!yes) return;
+                LW.forgetDirectory().then(function () {
+                    els.state.textContent = '已撤销授权。';
+                    return paint();
+                }).then(function () { UI.toast('已撤销文件夹授权', 'ok'); });
+            });
+        });
+
+        paint();
     }
 
     /** 「AI 生成」区块：图片一键转文章要用到的 Key / 模型 / 地址 */
@@ -192,6 +305,8 @@
 
                 aiSectionHTML() +
 
+                folderSectionHTML() +
+
                 '<section class="admin-section">' +
                 '<header><div><h2>运行环境</h2><div class="sub">用于排查「为什么读不到文章」之类的问题。</div></div></header>' +
                 '<div class="body"><ul class="health-list">' +
@@ -199,6 +314,7 @@
                 row('资源基路径', '<code>' + esc(Store.basePrefix() || './') + '</code>') +
                 row('嵌入式文章', embedded + ' 篇（articles-data.js）') +
                 row('IndexedDB', global.indexedDB ? '可用' : '不可用（浏览器不支持）') +
+                row('文件夹写入', LW && LW.isSupported() ? '可用（File System Access）' : '不可用（需 Chrome / Edge）') +
                 '</ul></div>' +
                 '</section>' +
 
@@ -235,6 +351,7 @@
             });
 
             wireAI(root);
+            wireFolder(root);
 
             root.querySelector('[data-role="wipe"]').addEventListener('click', function () {
                 UI.confirm('清空本地数据', '会删除本浏览器里保存的全部本地文章与图片，无法撤销。仓库里的文章不受影响。', '确认清空')

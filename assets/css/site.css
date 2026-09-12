@@ -31,6 +31,13 @@
     --surface-1: rgba(255, 255, 255, 0.040);
     --surface-2: rgba(255, 255, 255, 0.070);
     --surface-3: rgba(255, 255, 255, 0.105);
+    /* 表单控件底色。暗色下与 surface-1 同色就够（轻浮起）；
+       亮色下必须比页面底色深一点 —— 否则输入框与下拉是一块纯白，
+       在 #fafaf9 的页面上反而比页面更亮，看着"发白"。 */
+    --field-bg: rgba(255, 255, 255, 0.040);
+    /* 下拉展开后弹层的底色。这里必须是不透明色：原生弹层会拿 select 自身的
+       背景当底色，而 select 是半透明的，半透明衬到弹层上会翻成一片白。 */
+    --field-menu-bg: #17181c;
     --panel: var(--surface-2);
     --panel-hover: var(--surface-3);
     --panel-solid: #17181c;
@@ -101,6 +108,8 @@
     --surface-1: #ffffff;
     --surface-2: #f6f6f4;
     --surface-3: #ffffff;
+    --field-bg: #f2f2f0;
+    --field-menu-bg: #f2f2f0;
     --panel: var(--surface-2);
     --panel-hover: var(--surface-3);
     --panel-solid: #ffffff;
@@ -186,9 +195,14 @@
     --ease-out: cubic-bezier(.16, 1, .3, 1);
     --ease-soft: cubic-bezier(.22, 1, .36, 1);
     --ease-in-out: cubic-bezier(.4, 0, .2, 1);
+    /* 收尾带一点点回弹，用于"浮起"的卡片与图标按钮，手感更利落 */
+    --ease-spring: cubic-bezier(.34, 1.4, .5, 1);
     --dur-1: .18s;
     --dur-2: .28s;
     --dur-3: .4s;
+    /* 揭示动画的错落延迟：默认 0，需要排队入场时在元素上覆写即可，
+       不必为每个成员单独写一条 transition-delay 规则 */
+    --rd: 0s;
 
     /* 安全区（刘海屏 / 圆角屏 / 手势条）。需配合 viewport-fit=cover 才有非零值 */
     --safe-t: env(safe-area-inset-top, 0px);
@@ -283,6 +297,27 @@ img { height: auto; }
     transition: top var(--dur-2) var(--ease-out);
 }
 .skip-link:focus { top: var(--safe-t); }
+
+/* ==========================================================================
+   2.1 跨页面过渡（View Transitions API）
+   --------------------------------------------------------------------------
+   静态多页站点也能有"应用式"的页面切换：浏览器把旧页面快照淡出、新页面快照
+   淡入，全程在合成器上完成，不阻塞导航。不支持的浏览器会直接忽略这两条规则，
+   退化成本来的瞬时跳转，没有任何副作用。
+   ========================================================================== */
+
+@view-transition { navigation: auto; }
+
+/* 旧页面轻微上移淡出、新页面自下方浮起：比等量淡入更有方向感。
+   位移只给 4~6px —— 够被眼睛感知，又不至于让人等画面"走完"。 */
+::view-transition-old(root) {
+    animation: vtOut .2s var(--ease-soft) both;
+}
+::view-transition-new(root) {
+    animation: vtIn .3s var(--ease-soft) both;
+}
+@keyframes vtOut { to { opacity: 0; transform: translateY(-4px); } }
+@keyframes vtIn { from { opacity: 0; transform: translateY(6px); } }
 
 /* ==========================================================================
    3. 背景层
@@ -482,6 +517,19 @@ img { height: auto; }
 .mobile-menu a:hover,
 .mobile-menu a.active { color: var(--text); background: var(--surface-2); }
 
+/* 展开时菜单项自上而下逐条浮现，让"点开菜单"这个动作有明确的因果感，
+   而不是整块面板一起出现。只给前几条排延迟，条目再多后面的也直接呈现。 */
+.mobile-menu.open a { animation: menuItemIn .34s var(--ease-out) backwards; }
+.mobile-menu.open a:nth-child(1) { animation-delay: 30ms; }
+.mobile-menu.open a:nth-child(2) { animation-delay: 60ms; }
+.mobile-menu.open a:nth-child(3) { animation-delay: 90ms; }
+.mobile-menu.open a:nth-child(4) { animation-delay: 120ms; }
+.mobile-menu.open a:nth-child(5) { animation-delay: 150ms; }
+@keyframes menuItemIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: none; }
+}
+
 /* ==========================================================================
    5. 容器与分节
    ========================================================================== */
@@ -546,6 +594,7 @@ img { height: auto; }
     /* transform 也必须参与过渡：否则 :active 的轻微按压会瞬间跳变 */
     transition: background var(--dur-1) ease, border-color var(--dur-1) ease,
                 color var(--dur-1) ease, opacity var(--dur-1) ease,
+                box-shadow var(--dur-2) ease,
                 transform var(--dur-1) var(--ease-out);
 }
 
@@ -553,14 +602,14 @@ img { height: auto; }
     color: var(--on-grad);
     background: var(--grad-accent);
 }
-.btn-primary:hover { opacity: .88; }
+.btn-primary:hover { opacity: .9; transform: translateY(-1px); box-shadow: var(--shadow-md); }
 
 .btn-ghost {
     color: var(--text);
     background: var(--surface-1);
     border-color: var(--border);
 }
-.btn-ghost:hover { background: var(--surface-2); border-color: var(--border-strong); }
+.btn-ghost:hover { background: var(--surface-2); border-color: var(--border-strong); transform: translateY(-1px); }
 
 .btn-danger {
     color: var(--danger);
@@ -597,7 +646,7 @@ img { height: auto; }
     font-family: inherit;
     font-size: var(--fs-md);
     color: var(--text);
-    background: var(--surface-1);
+    background: var(--field-bg);
     border: 1px solid var(--border);
     border-radius: var(--r-md);
     padding: 10px 13px;
@@ -608,7 +657,9 @@ img { height: auto; }
 .input:hover, .textarea:hover, .select:hover { border-color: var(--border-strong); }
 .input:focus, .textarea:focus, .select:focus {
     border-color: var(--accent);
-    background: var(--surface-2);
+    /* 只改 background-color。用 background 简写会把 .select 的箭头一起清掉
+       （箭头是用 background-image 画的），聚焦的瞬间下拉箭头会凭空消失。 */
+    background-color: var(--surface-2);
     box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .textarea { resize: vertical; min-height: 84px; line-height: 1.7; }
@@ -624,6 +675,13 @@ img { height: auto; }
     background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
     background-size: 5px 5px, 5px 5px;
     background-repeat: no-repeat;
+}
+/* 展开后的选项列表。
+   原生弹层的底色会跟着 select 自身的背景走，而 select 的底色是半透明的，
+   叠到弹层上就被衬成一片白。这里给选项显式指定不透明底色，两套主题都不再"发白"。 */
+.select option {
+    background-color: var(--field-menu-bg);
+    color: var(--text);
 }
 
 /* 复选框 */
@@ -716,9 +774,15 @@ a.tag:hover { color: var(--text); border-color: var(--border-strong); background
     background: var(--surface-1);
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
-    transition: border-color var(--dur-2) ease, background var(--dur-2) ease;
+    transition: border-color var(--dur-2) ease, background var(--dur-2) ease,
+                box-shadow var(--dur-2) ease, transform var(--dur-2) var(--ease-out);
 }
-.card:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.card:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-2);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
 
 /* ==========================================================================
    10. 页脚
@@ -794,21 +858,33 @@ a.tag:hover { color: var(--text); border-color: var(--border-strong); background
                 color var(--dur-1) ease, border-color var(--dur-1) ease;
 }
 .to-top.show { opacity: 1; transform: none; pointer-events: auto; }
-.to-top:hover { color: var(--text); border-color: var(--accent); }
+.to-top:hover { color: var(--text); border-color: var(--accent); transform: translateY(-2px); }
+.to-top:active { transform: scale(.94); }
 
 /* ==========================================================================
-   12. 滚动揭示（仅一次淡入，不做位移缩放）
+   12. 滚动揭示（进入视口时淡入 + 轻微上浮）
+   --------------------------------------------------------------------------
+   只动 opacity / transform 两个合成属性：既不触发重排，也不惊动绘制。
+   需要错落时给元素加 style="--rd:.08s" 即可，无需为每个元素写一条延迟规则。
    ========================================================================== */
 
-.reveal { opacity: 0; transition: opacity .5s var(--ease-out); }
-.reveal.in { opacity: 1; }
-/* 列表页首屏的卡片入场。这里用 animation 而不是 transition：
+.reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity .62s var(--ease-out) var(--rd),
+                transform .62s var(--ease-out) var(--rd);
+}
+.reveal.in { opacity: 1; transform: none; }
+
+/* 列表页卡片入场。这里用 animation 而不是 transition：
    错落的 animation-delay 只作用于动画本身，不会像 transition-delay 那样
-   把卡片 hover 的换色过渡一起拖慢。 */
+   把卡片 hover 的换色与浮起一并拖慢。 */
 .card-in { animation: cardIn var(--dur-3) var(--ease-out) backwards; }
+/* 二次渲染（搜索 / 筛选 / 排序）用更短的时长，输入时不会一卡一卡地等动画 */
+.card-in-quick { animation-duration: .26s; }
 @keyframes cardIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
 }
 
 /* ==========================================================================
@@ -993,12 +1069,16 @@ code, kbd, pre, samp {
    17. 触屏与响应式
    ========================================================================== */
 
-/* 触屏设备：按压反馈代替 hover */
+/* 触屏设备：按压反馈代替 hover。
+   触屏上 hover 会在点按后"粘住"，所以把浮起与投影一并复位，
+   只保留颜色变化作为反馈。 */
 @media (hover: none) {
     .nav-links a:hover,
     .btn-ghost:hover,
     .card:hover { background: var(--surface-1); }
     .card:hover { border-color: var(--border); }
+    .btn:hover,
+    .card:hover { transform: none; box-shadow: none; }
 }
 
 .theme-toggle:active,

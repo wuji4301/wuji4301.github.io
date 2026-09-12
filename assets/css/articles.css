@@ -119,9 +119,17 @@
     background: var(--surface-1);
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
-    transition: border-color var(--dur-2) ease, background var(--dur-2) ease;
+    /* 过渡只列 opacity 之外的"便宜"属性 + transform：
+       transform 与 box-shadow 由合成器/光栅各自处理，hover 时不会引发内部文本重排。 */
+    transition: border-color var(--dur-2) ease, background var(--dur-2) ease,
+                box-shadow var(--dur-2) ease, transform var(--dur-2) var(--ease-out);
 }
-.post-card:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.post-card:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-2);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+}
 .post-card:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
 
 .post-cover {
@@ -131,7 +139,12 @@
     object-fit: cover;
     display: block;
     background: var(--bg-soft);
+    /* 悬停时封面极轻微放大：卡片"浮起"的同时画面也跟着贴近一点。
+       缩放走 transform，不会引起卡片内文字的回流。 */
+    transform-origin: 50% 42%;
+    transition: transform .5s var(--ease-out);
 }
+.post-card:hover .post-cover { transform: scale(1.045); }
 .post-title {
     font-size: var(--fs-xl);
     font-weight: 650;
@@ -223,6 +236,30 @@
         transform: none;
         transition: none;
     }
+}
+
+/* 正文逐块浮现：在上面整块淡入之后接着往下铺开，比"一次全亮"更有阅读引导。
+   只让最前面的 8 块参与（nth-child 限定），后面的内容直接呈现 —— 长文即使
+   上百个块，也不会一次性启动上百条动画。
+   注意：这里的触发类 .article-ready 挂在 <main> 上，而导出 PDF 只取
+   #articleBody 的 innerHTML，所以这套动效不会渗进打印内容里。 */
+.article-page.article-ready .prose > *:nth-child(-n+8) {
+    animation: proseIn .5s var(--ease-out) backwards;
+}
+.article-page.article-ready .prose > *:nth-child(1) { animation-delay: 0ms; }
+.article-page.article-ready .prose > *:nth-child(2) { animation-delay: 40ms; }
+.article-page.article-ready .prose > *:nth-child(3) { animation-delay: 80ms; }
+.article-page.article-ready .prose > *:nth-child(4) { animation-delay: 120ms; }
+.article-page.article-ready .prose > *:nth-child(5) { animation-delay: 160ms; }
+.article-page.article-ready .prose > *:nth-child(6) { animation-delay: 200ms; }
+.article-page.article-ready .prose > *:nth-child(7) { animation-delay: 240ms; }
+.article-page.article-ready .prose > *:nth-child(8) { animation-delay: 280ms; }
+@keyframes proseIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .article-page.article-ready .prose > *:nth-child(-n+8) { animation: none; }
 }
 
 .article-head { padding: clamp(26px, 5vh, 52px) 0 0; }
@@ -349,6 +386,9 @@
 /* 触屏没有 hover，锚点永远点不到；它的负偏移还会在窄屏撑出一段横向可滚动区 */
 @media (hover: none) {
     .prose .h-anchor { display: none; }
+    /* 触屏上 hover 会在点按后残留，把浮起与放大复位 */
+    .post-card:hover { transform: none; box-shadow: none; }
+    .post-card:hover .post-cover { transform: none; }
 }
 
 .prose strong { color: var(--text); font-weight: 720; }

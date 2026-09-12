@@ -13,6 +13,7 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23101114'/%3E%3Ctext x='50' y='71' font-size='58' font-weight='600' text-anchor='middle' fill='%23f2f2f2' font-family='PingFang SC,Microsoft YaHei,sans-serif'%3E%E6%97%A0%3C/text%3E%3C/svg%3E" />
     <link rel="stylesheet" href="assets/css/site.css" />
     <link rel="stylesheet" href="assets/css/articles.css" />
+    <link rel="stylesheet" href="assets/css/motion.css" />
     <script>
         // 防首屏闪烁（FOUC）：在 <body> 解析前定好主题
         (function () {
@@ -36,7 +37,7 @@
         </a>
         <div class="nav-links">
             <a href="index.html">首页</a>
-            <a href="articles.html">文章</a>
+            <a href="#mainContent">文章</a>
             <a href="index.html#contact">联系</a>
         </div>
         <div class="nav-right">
@@ -46,7 +47,7 @@
     </nav>
     <div class="mobile-menu" id="mobileMenu">
         <a href="index.html">首页</a>
-        <a href="articles.html">文章</a>
+        <a href="#mainContent">文章</a>
         <a href="index.html#contact">联系</a>
     </div>
 
@@ -55,13 +56,12 @@
             <div class="head-row">
                 <div>
                     <h1>文章</h1>
-                    <p class="sub">技术笔记、数学推导与随手记录。支持 Markdown、LaTeX 公式、代码高亮与图片。</p>
                 </div>
             </div>
         </header>
 
         <!-- 搜索 / 排序 -->
-        <div class="list-toolbar">
+        <div class="list-toolbar reveal" style="--rd:.06s">
             <div class="search-box">
                 <input class="input" id="searchInput" type="search" placeholder="搜索标题、摘要、标签或正文…" aria-label="搜索文章">
             </div>
@@ -89,7 +89,7 @@
         </div>
     </main>
 
-    <footer class="footer">
+    <footer class="footer reveal">
         <div class="wrap footer-inner">
             <div class="f-brand">
                 <a class="brand" href="index.html">
@@ -129,8 +129,9 @@
             var all = [];             // 全部已发布文章
             var activeTags = [];      // 选中的标签（多选）
             var query = '';
-            var firstPaint = true;    // 仅首屏播放卡片入场动画，之后即时切换
+            var firstPaint = true;    // 首屏用较长的错落动画，之后用短促的过渡
             var cardSeq = 0;
+            var lastSig = null;       // 上一次渲染的列表指纹，用来跳过无谓的 DOM 重建
 
             function currentList() {
                 var q = query.trim().toLowerCase();
@@ -165,21 +166,80 @@
                 }).join('');
             }
 
+            /* 重排位移（FLIP）
+
+               改排序或切标签会整块重建列表，位置其实没变的卡片也跟着重播一次入场，
+               看起来像整页刷新。这里在重建前记下每张卡片的矩形，重建后让"上一版就在、
+               这一版还在"的卡片从旧位置滑到新位置 —— 只有真正新出现的卡片才播入场。
+               同一批内容只是换了位置，就该看起来是"移动"，而不是"重新来过"。
+
+               用 href 做身份键：它由 articleURL(a) 生成，同一篇文章必然得到同一个值。
+               位移交给 WAAPI：它自己合成这一层的 transform，不用挂 will-change，
+               也不会和 .card-in 的 CSS 动画抢同一个属性（留下的卡片根本不挂 .card-in）。 */
+            function captureRects() {
+                var map = {};
+                Array.prototype.forEach.call(grid.children, function (el) {
+                    if (el.classList && el.classList.contains('post-card')) {
+                        map[el.getAttribute('href')] = el.getBoundingClientRect();
+                    }
+                });
+                return map;
+            }
+
+            function playFlip(before) {
+                var moves = [];
+                Array.prototype.forEach.call(grid.children, function (el) {
+                    var from = before[el.getAttribute && el.getAttribute('href')];
+                    if (!from || !el.animate) return;
+                    var to = el.getBoundingClientRect();
+                    var dx = from.left - to.left;
+                    var dy = from.top - to.top;
+                    if (!dx && !dy) return;              // 没挪窝的不用动
+                    moves.push([el, dx, dy]);
+                });
+                for (var i = 0; i < moves.length; i++) {
+                    moves[i][0].animate([
+                        { transform: 'translate(' + moves[i][1] + 'px,' + moves[i][2] + 'px)' },
+                        { transform: 'none' }
+                    ], { duration: 340, easing: 'cubic-bezier(.16,1,.3,1)' });
+                }
+            }
+
             function render() {
                 var list = currentList();
-                cardSeq = 0;
-                grid.innerHTML = list.map(function (a) {
-                    return Blog.cardHTML(a, {
-                        animate: firstPaint,
-                        delay: Math.min(cardSeq++, 8) * 40
-                    });
-                }).join('');
-                firstPaint = false;
-                emptyBox.hidden = list.length > 0;
-                if (!list.length) {
-                    emptyText.textContent = all.length
-                        ? '没有匹配的文章，换个关键词或取消标签筛选试试。'
-                        : '还没有文章。把文章 JSON 放进 articles/ 目录并更新 articles/index.json 后即可显示。';
+                var sig = list.map(function (a) { return a.id || a.slug || a.title; }).join('\u0001');
+
+                // 列表没有实质变化（例如输入后又删回原样、切标签但结果一致）时直接跳过
+                // DOM 重建：省掉图片的重新解码与整块重排，标签按钮的状态照常刷新。
+                if (sig !== lastSig) {
+                    lastSig = sig;
+                    var entering = firstPaint;
+                    firstPaint = false;
+                    cardSeq = 0;
+                    // 首屏错落 40ms（最多 8 档），二次筛选收紧到 22ms（最多 6 档）：
+                    // 输入时的反馈要快，又保留一点自上而下的方向感。
+                    var step = entering ? 40 : 22;
+                    var cap = entering ? 8 : 6;
+                    // 首屏没有"上一版"可比，自然不做位移
+                    var before = entering ? null : captureRects();
+                    grid.innerHTML = list.map(function (a) {
+                        // 上次就在、这次还在的卡片走位移过渡，不播入场
+                        if (before && before[Blog.articleURL(a)])
+                            return Blog.cardHTML(a, { animate: false });
+                        // 新出现的才排进错落；序号只给它们递增，不被留下的卡片占位
+                        return Blog.cardHTML(a, {
+                            animate: true,
+                            quick: !entering,
+                            delay: Math.min(cardSeq++, cap) * step
+                        });
+                    }).join('');
+                    if (before) playFlip(before);
+                    emptyBox.hidden = list.length > 0;
+                    if (!list.length) {
+                        emptyText.textContent = all.length
+                            ? '没有匹配的文章，换个关键词或取消标签筛选试试。'
+                            : '还没有文章。把文章 JSON 放进 articles/ 目录并更新 articles/index.json 后即可显示。';
+                    }
                 }
                 renderTagFilter();
             }

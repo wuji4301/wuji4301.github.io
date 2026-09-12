@@ -7,16 +7,17 @@
 admin/
 ├── index.html      管理外壳：侧栏 + hash 路由，挂载五个视图
 ├── editor.html     文章编辑器：富文本 / Markdown 双模式、LaTeX、图片、AI 写稿
-├── selftest.html   全链路自测（渲染 / 存储 / 编辑器 / 导入导出 / 导出 PDF / AI 离线校验）
+├── selftest.html   全链路自测（渲染 / 存储 / 编辑器 / 导入导出 / 导出 PDF / AI / 写入文件夹校验）
 ├── admin.css       后台设计系统（复用 site.css 令牌，仅后台加载）
 ├── js/
 │   ├── shell.js     外壳：数据层、hash 路由、公共渲染助手
 │   ├── ai.js        AI 生成：DeepSeek V4.1 图片转文章（仅后台加载）
+│   ├── localwrite.js 写入本地文件夹：File System Access 直写项目目录（仅后台加载）
 │   ├── dashboard.js 概览视图（统计、快捷入口、数据健康）
 │   ├── articles.js  文章管理视图（搜索筛选排序、批量操作）
 │   ├── images.js    图片库视图（引用统计、预览、一键转文章、复制引用、下载、删除）
-│   ├── publish.js   发布中心（打包导入导出、待同步删除、部署命令）
-│   ├── settings.js  设置视图（AI 生成配置、主题、存储与运行环境、数据维护）
+│   ├── publish.js   发布中心（一键写入文件夹、变更预览、打包导入导出、待同步删除、部署命令）
+│   ├── settings.js  设置视图（本地文件夹授权、AI 生成配置、主题、存储与运行环境、数据维护）
 │   └── editor-page.js 编辑器页面逻辑
 └── README.md       本文件
 ```
@@ -35,15 +36,15 @@ admin/
 1. 在主页「概览」或「文章」视图点「写新文章」→ 进入编辑器；
 2. 编辑过程中自动保存到浏览器 IndexedDB（关标签页也不丢）；
 3. 「预览」确认排版；
-4. 回到主页切到 **发布中心** 点「打包发布」，下载 `articles-publish.json`；
-5. 在项目根目录执行：
+4. 回到主页切到 **发布中心** → 点「一键写入项目文件夹」即可（推荐，见下节）；
+5. 若想走命令行，改点「打包发布」下载 `articles-publish.json`，再在项目根目录执行：
 
 ```bash
 node tools/publish.mjs ~/Downloads/articles-publish.json
 ```
 
-该命令会把文章写进 `articles/`、重建 `articles/index.json` 与 `articles-data.js`；
-之后用 `git add -A && git commit && git push` 发布。
+两条路径都会把文章写进 `articles/`、重建 `articles/index.json` 与 `articles-data.js`；
+之后用 `git add -A && git commit && git push` 发布——**提交始终由你来做**。
 
 ### 删除文章
 
@@ -51,9 +52,9 @@ node tools/publish.mjs ~/Downloads/articles-publish.json
 
 1. 在「文章」视图（列表行内 / 批量操作）或编辑器里点「删除」；
 2. 文章立刻从列表消失——这一步只在本地记一个**删除标记**（只记 id），仓库文件还没动；
-3. 走一次「打包发布 → `node tools/publish.mjs`」：命中的 id 会从 `articles/index.json`
-   剔除、`articles/<id>.json` 被删除、`articles-data.js` 重建；
-4. `git add -A && git commit && git push`，线上才真正消失。
+3. 走一次「一键写入项目文件夹」或「打包发布 → `node tools/publish.mjs`」：命中的 id 会从
+   `articles/index.json` 剔除、`articles/<id>.json` 被删除、`articles-data.js` 重建；
+4. 无论走哪条路径，都要自己 `git add -A && git commit && git push`，线上才会消失。
 
 「发布」视图会列出所有**待同步删除**，可以逐条「撤销删除」或「全部恢复」。标记会在列表
 刷新时自愈：仓库里已经不存在的 id 自动出列。
@@ -92,6 +93,41 @@ node tools/publish.mjs ~/Downloads/articles-publish.json
 - **失败说人话**：401 / 402 / 429 等状态码会翻译成能照着做的提示；接口若不吃
   `response_format`，会自动去掉它重试一次；
 - **只落草稿**：生成结果永远存成 `status: draft`，发布链路一行都不用改。
+
+### 一键写入项目文件夹
+
+不想开终端时，可以在「发布中心 → 一键写入项目文件夹」里一次点击把本地改动直接写进项目：
+浏览器用 **File System Access API** 读现有 `articles/index.json`、与本地文章合并，写出
+`articles/<id>.json`、`articles/index.json`、`articles-data.js`，图片二进制写进
+`articles/img/`，并删掉多余的文件——产物与 `node tools/publish.mjs` 落盘的完全相同。
+写完界面会给出下一步的 `git` 命令，**提交仍由你来做**：`git add -A && git commit && git push`
+之后 GitHub Pages 才重建。
+
+首次使用在「设置 → 本地文件夹」里点「选择项目文件夹」，选中**项目根目录**（含
+`articles/`、`articles-data.js` 的那一层），并确认授权：
+
+| 项 | 默认 | 说明 |
+| --- | --- | --- |
+| 项目文件夹 | 空 | 浏览器句柄存在 IndexedDB（键 `wuji-blog-folder`），不写文件、不进仓库 |
+| 站点地址 | 空 | 可选，写入成功后给出可点开的链接 |
+
+> 只有 **Chrome / Edge** 支持 File System Access，且 `file://` 下也可以直接用；
+> Firefox / Safari 打开会提示不支持，请改用「打包发布 → `node tools/publish.mjs`」。
+
+几个实现上的取舍：
+
+- **写入的是你亲手指定的目录**：句柄只授权给这一个文件夹，浏览器不会乱写别处；
+- **授权只在本机**：目录句柄存在 IndexedDB，授权状态由浏览器管，页面里可随时「撤销授权」；
+  浏览器重启后授权会回到 `prompt`，点一次「重新授权」即可（必须在真实点击里申请）；
+- **产物与命令行一致**：纯函数与 `tools/publish.mjs` 逐字节对齐（`test-localwrite.mjs` 直接
+  比对两处生成结果），因此一键写入与 `node tools/publish.mjs` 落盘的内容完全相同；
+- **先看后写**：点按钮会先给出**变更预览**（会写哪些文件、删哪些、跳过哪些草稿），
+  确认后才写入；草稿需要显式勾选才发布；
+- **缺图说人话**：正文或封面引用了本地图库里没有的图片时，会保留 `img://<id>` 并逐条报告，
+  不会静默留下坏引用；
+- **封面跟正文一起换**：`cover` 字段和正文一样会把 `img://<id>` 换成本地路径。封面是第二个
+  `img://` 入口，只换正文的话它会带着 `img://` 落盘，在公开站点上变成一个裂图——公开层
+  没有图库，读到 `img://` 只能失败。
 
 ### 导出 PDF
 

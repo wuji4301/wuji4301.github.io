@@ -19,6 +19,7 @@
 //
 // 发布包里的 images 只记录元信息（id/name/type/size）——图片二进制在浏览器 IndexedDB 里，
 // 需要从管理系统的「下载图片」按钮导出后手工放进 articles/img/。
+// 正文与封面里的 img://<id> 也都要手工换成相对路径；漏掉的话会在日志里被逐条点名。
 import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -50,6 +51,31 @@ export function cleanArticle(a) {
   return out;
 }
 
+/**
+ * 找出仍带 img:// 引用的文章，正文与封面分别报。
+ * 命令行拿不到图片二进制，替换只能靠人 —— 但至少要点名，否则封面里的
+ * img:// 会静默上线，在公开站点上变成一个裂图（公开层没有 IndexedDB）。
+ */
+export function unresolvedRefs(list) {
+  const hit = [];
+  for (const a of list || []) {
+    const fields = [];
+    if (/img:\/\//.test(String(a && a.body || ''))) fields.push('正文');
+    if (/img:\/\//.test(String(a && a.cover || ''))) fields.push('封面');
+    if (fields.length) hit.push({ id: a.id, title: a.title || a.id, fields });
+  }
+  return hit;
+}
+
+function logUnresolved(leftovers, log) {
+  if (!leftovers.length) return;
+  log('\n注意：下面这些文章里还留着 img:// 引用（命令行走不了浏览器图库，无法自动替换）：');
+  leftovers.slice(0, 10).forEach((h) => log('  · 《' + h.title + '》 ' + h.id + ' —— ' + h.fields.join(' / ')));
+  if (leftovers.length > 10) log('  · … 其余 ' + (leftovers.length - 10) + ' 篇');
+  log('  封面里的 img:// 一定要改：公开站点没有图库，读到它就是一个裂图。');
+  log('  想免掉这一步：后台「发布中心 → 一键写入项目文件夹」会连图片一起写、并自动换好引用。');
+}
+
 function extOf(im) {
   const m = /\.([a-z0-9]+)$/i.exec(im.name || '');
   if (m) return m[1].toLowerCase();
@@ -63,7 +89,8 @@ function extOf(im) {
 }
 
 /**
- * @returns {Promise<{written:string[], indexCount:number, skippedDrafts:number, images:object[]}>}
+ * @returns {Promise<{written:string[], indexCount:number, skippedDrafts:number, images:object[], unresolved:object[]}>}
+ *   `unresolved` 列出仍带 img:// 的文章（{id,title,fields}），命令行只能提示、不能替换。
  * @throws {Error} 参数/数据有问题时抛出（中文消息，直接可展示）
  */
 export async function publish(opts = {}) {
@@ -158,6 +185,7 @@ export async function publish(opts = {}) {
   );
 
   const images = isPack && Array.isArray(pack.images) ? pack.images : [];
+  const leftovers = unresolvedRefs(publishable);
 
   if (dryRun) {
     log('\n--dry-run：以下操作不会真的执行');
@@ -167,9 +195,11 @@ export async function publish(opts = {}) {
     log('  更新 articles/index.json（共 ' + merged.length + ' 条）');
     log('  重建 articles-data.js');
     if (images.length) log('  提示放置 ' + images.length + ' 张图片到 articles/img/');
+    logUnresolved(leftovers, log);
     return {
       written: [], removed: removed.map((r) => r.id),
-      indexCount: merged.length, skippedDrafts: includeDrafts ? 0 : drafts.length, images, dryRun: true
+      indexCount: merged.length, skippedDrafts: includeDrafts ? 0 : drafts.length, images,
+      unresolved: leftovers, dryRun: true
     };
   }
 
@@ -223,18 +253,21 @@ export async function publish(opts = {}) {
     log('\n图片（' + images.length + ' 张）需要手工放置：');
     log('  1) 在管理系统点「下载图片」，或用之前下载的文件');
     log('  2) 放进 articles/img/');
-    log('  3) 把正文里的 img://<id> 换成 articles/img/<id>.<ext>');
+    log('  3) 把正文与封面里的 img://<id> 换成 articles/img/<id>.<ext>');
     log('  参考文件名：');
     images.slice(0, 8).forEach((im) => log('    ' + im.id + '.' + extOf(im)));
     if (images.length > 8) log('    … 其余 ' + (images.length - 8) + ' 张');
   }
+
+  logUnresolved(leftovers, log);
 
   log('\n下一步：');
   log('  git add articles/ articles-data.js && git commit -m "更新文章" && git push');
 
   return {
     written, removed: removedIds,
-    indexCount: index.articles.length, skippedDrafts: includeDrafts ? 0 : drafts.length, images
+    indexCount: index.articles.length, skippedDrafts: includeDrafts ? 0 : drafts.length, images,
+    unresolved: leftovers
   };
 }
 

@@ -12,13 +12,14 @@ HTML / CSS / JavaScript，公式引擎 KaTeX 也自托管在 `vendor/`。
 │  assets/{css,js}  vendor/katex  articles/  articles-data.js                   │
 └───────────────────────────────────────────────────────────────────────────────┘
                                     ▲
-                    发布：node tools/publish.mjs <发布包>
+                    发布：后台「一键写入项目文件夹」（File System Access API）
+                          或 node tools/publish.mjs <发布包>
                                     │
 ┌─────────────────── 本地管理系统（作者本机，绝不部署） ─────────────────────────┐
 │  admin/index.html   管理外壳：hash 路由到概览 / 文章 / 图片 / 发布 / 设置五个视图  │
 │  admin/editor.html  编辑器：Markdown / 富文本双模式、LaTeX、图片                 │
 │  admin/selftest.html 浏览器端全链路自测                                        │
-│  admin/js/          后台模块（外壳、各视图、AI 生成、编辑器页逻辑）                │
+│  admin/js/          后台模块（外壳、各视图、AI 生成、写入文件夹、编辑器页逻辑）    │
 │  tools/             发布、部署、测试脚本                                        │
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -44,6 +45,12 @@ HTML / CSS / JavaScript，公式引擎 KaTeX 也自托管在 `vendor/`。
 ```
 写新文章  →  admin/editor.html        编辑、预览（自动保存到 IndexedDB）
 图片转文章 →  图片库图卡点「一键转文章」，或编辑器顶部「AI 写稿」（先在「设置」配 DeepSeek API Key）
+一键写入  →  admin/index.html「发布中心」点「一键写入项目文件夹」（先在「设置」选项目文件夹，仅 Chrome/Edge）
+```
+
+也可以走命令行（先「打包发布」下载 `articles-publish.json`）：
+
+```
 打包发布  →  admin/index.html「发布中心」点「打包发布」下载 articles-publish.json
 本地落地  →  node tools/publish.mjs "<下载目录>/articles-publish.json"
 提交发布  →  git add -A && git commit -m "更新文章" && git push
@@ -57,7 +64,7 @@ HTML / CSS / JavaScript，公式引擎 KaTeX 也自托管在 `vendor/`。
 
 删除**不区分线上线下**：后台任意文章都能直接删。但浏览器改不了磁盘上的仓库文件，
 所以点删除只是记一个「删除标记」（id）——文章立刻从后台列表消失，**公开站点仍然看得到**，
-直到下面这条命令落地并推送：
+直到下面这条命令落地并推送（或直接在「发布中心」点「一键写入项目文件夹」）：
 
 ```
 后台删除  →  文章列表 / 编辑器里点「删除」
@@ -66,7 +73,7 @@ HTML / CSS / JavaScript，公式引擎 KaTeX 也自托管在 `vendor/`。
 ```
 
 落地时命中的 id 会被从 `articles/index.json` 剔除、`articles/<id>.json` 删除，
-`articles-data.js` 一并重建。不想用命令也可以走发布包（标记随包携带）：
+`articles-data.js` 一并重建。不想用命令也可以走发布包（标记随包携带），或直接「一键写入项目文件夹」：
 
 ```
 打包发布  →  发布中心「打包发布」下载 articles-publish.json
@@ -146,9 +153,9 @@ blob 解析、打包导出等写操作。作者想改一篇已发布文章时，
 把图片转 base64 塞进 JSON 会让文件迅速膨胀、diff 失去意义。因此：
 
 - 二进制存 IndexedDB 的 `images` 表；
-- 正文里只写短引用 `img://<id>`；
+- 正文与封面里只写短引用 `img://<id>`；
 - 渲染时解析成 `blob:` URL 显示；
-- 导出时落盘为 `articles/img/<id>.<ext>`，并把引用改成相对路径。
+- 导出时落盘为 `articles/img/<id>.<ext>`，并把正文与封面里的引用一起改成相对路径。
 
 ### 4. 公式
 
@@ -198,6 +205,27 @@ KaTeX 0.16.11 自托管于 `vendor/katex/`（65 个文件，约 1.35 MiB，含 w
 - **不碰发布链路**：生成结果一律是 `status: draft`，配图只写 `img://<id>`，
   与"图片不内联""草稿要显式发布"这两条既有约定完全对齐。
 
+### 7. 一键写入项目文件夹为什么不需要后端
+
+"把文章写进仓库"这件事可以在浏览器里直接完成：**File System Access API** 让你亲手指定
+项目根目录后，后台就能把 `articles/<id>.json`、`articles/index.json`、`articles-data.js`
+和图片写进去，并删掉多余的仓库文件（`admin/js/localwrite.js`）：
+
+- **句柄只属于本机**：目录句柄存在 IndexedDB（键 `wuji-blog-folder`），不落文件、不进仓库；
+  浏览器重启后授权回到 `prompt`，点一次「重新授权」即可。代码随 `admin/` 一起物理不部署，
+  线上没有这个入口；
+- **只有 Chrome / Edge 支持**：`file://` 下也能直接用；Firefox / Safari 会提示改用
+  「打包发布 → `node tools/publish.mjs`」；
+- **与命令行同源**：生成 `articles/<id>.json`、`articles/index.json`、`articles-data.js`
+  的纯函数与 `tools/publish.mjs` 逐字节对齐，`test-localwrite.mjs` 会直接比对两处输出，
+  因此"一键写入"和 `node tools/publish.mjs` 落盘的内容完全一致；
+- **提交仍由你来做**：浏览器只改磁盘文件，写完给出 `git add/commit/push` 命令，
+  GitHub Pages 在那之后才重建；
+- **可测**：配置读写、变更计划、产物文本都是纯函数；`test-localwrite.mjs` 用内存版
+  `FileSystemDirectoryHandle` 垫片把整条写入链路跑通，不碰真实磁盘。
+
+发布语义与命令行保持一致：默认只发 `published` 的文章、支持删除标记、保留未改动的线上文章。
+
 ## 目录结构
 
 ```
@@ -214,6 +242,7 @@ KaTeX 0.16.11 自托管于 `vendor/katex/`（65 个文件，约 1.35 MiB，含 w
 ├── assets/
 │   ├── css/site.css      共享设计系统（主题变量、导航、按钮、卡片…）
 │   ├── css/articles.css  文章列表 / 阅读排版 / 编辑器 / 弹窗
+│   ├── css/motion.css    动效层（入场 / 揭示 / 淡入 / 主题扩散 / 目录滑轨）
 │   └── js/
 │       ├── blog.js       公开阅读层（只读文章数据、渲染卡片与元信息）
 │       ├── store.js      后台数据层（IndexedDB 本地库、导入导出，仅 admin/ 使用）
@@ -233,11 +262,12 @@ KaTeX 0.16.11 自托管于 `vendor/katex/`（65 个文件，约 1.35 MiB，含 w
 │   ├── js/
 │   │   ├── shell.js      后台外壳与数据层（路由、公共渲染助手）
 │   │   ├── ai.js         AI 生成：DeepSeek V4.1 图片转文章（不部署）
+│   │   ├── localwrite.js 一键写入项目文件夹：File System Access 直写本地目录（不部署）
 │   │   ├── dashboard.js  概览视图
 │   │   ├── articles.js   文章管理视图
 │   │   ├── images.js     图片库视图
-│   │   ├── publish.js    发布中心视图
-│   │   ├── settings.js   设置视图
+│   │   ├── publish.js    发布中心视图（含一键写入项目文件夹）
+│   │   ├── settings.js   设置视图（含本地文件夹授权）
 │   │   └── editor-page.js 编辑器页面逻辑
 │   └── README.md
 └── tools/                ★ 本地工具（不部署）
@@ -254,23 +284,25 @@ KaTeX 0.16.11 自托管于 `vendor/katex/`（65 个文件，约 1.35 MiB，含 w
 node tools/test-render.mjs     # Markdown 渲染器（88 项，自带极简 DOM 垫片）
 node tools/test-convert.mjs    # HTML ⇄ Markdown 往返（85 项）
 node tools/test-katex.mjs      # 真实 KaTeX 排版仓库文章 + 内置样本公式（30 项）
-node tools/test-css.mjs        # 样式括号/变量/结构/令牌完整性（66 项）
+node tools/test-css.mjs        # 样式括号/变量/结构/令牌完整性（68 项）
 node tools/test-design.mjs     # WCAG 对比度、阶梯单调性、可访问性细节（63 项）
-node tools/test-assets.mjs     # 资源/脚本/隔离/路径前缀（109 项）
+node tools/test-assets.mjs     # 资源/脚本/隔离/路径前缀/顶部导航锚点（118 项）
 node tools/test-data.mjs       # 嵌入式数据与 JSON 真源同源（23 项）
-node tools/test-publish.mjs    # 发布链路端到端，含删除标记、dry-run 与错误处理（59 项）
+node tools/test-publish.mjs    # 发布链路端到端，含删除标记、dry-run、img:// 点名与错误处理（69 项）
 node tools/test-store.mjs      # 数据层：删除标记、刷新后持久化、自愈（21 项，自带 IndexedDB 垫片）
 node tools/test-ai.mjs         # AI 生成：提示词组装、响应解析、错误翻译、端到端（75 项，假 fetch 不联网）
+node tools/test-localwrite.mjs # 一键写入文件夹：配置、纯函数与 publish.mjs 一致、正文与封面换引用、端到端写入（124 项，内存 FS 垫片不碰磁盘）
 ```
 
-共 **619 项断言**。`test-publish.mjs` 会完整备份并还原 `articles/`，跑完不留痕迹。
+共 **779 项断言**。`test-publish.mjs` 会完整备份并还原 `articles/`，跑完不留痕迹。
 
-`test-katex.mjs` 与 `test-data.mjs` 的项数随仓库文章数增减（当前仓库为空，故为 30 / 23）；
+`test-katex.mjs` 与 `test-data.mjs` 的项数随仓库文章数增减（当前仓库 1 篇，故为 35 / 33）；
 其余各项与文章内容无关。`test-store.mjs` 用文件内固定样本注入仓库侧数据，仓库清空也不会变红。
 
 浏览器端全链路自测：直接双击 `admin/selftest.html`。它在真实 DOM + KaTeX + IndexedDB
-环境里验证渲染、存储、编辑器保存回读、导入导出、导出 PDF、嵌入式数据与 AI 生成的纯函数，
-并清理自己创建的测试数据（AI 那节只验离线逻辑，不发真实请求）。
+环境里验证渲染、存储、编辑器保存回读、导入导出、导出 PDF、嵌入式数据、AI 生成与
+写入文件夹的纯函数，并清理自己创建的测试数据（AI 那节不发真实请求、不碰 Token，
+写入文件夹那节只验纯函数、不碰真实文件系统）。
 
 ### UI 是怎么被验证的
 
@@ -291,12 +323,13 @@ node tools/test-ai.mjs         # AI 生成：提示词组装、响应解析、�
 
 ## 设计系统
 
-样式集中在三个文件，组件一律使用令牌（`admin.css` 复用 `site.css` 的令牌，不重复定义 `:root`），不写魔法值：
+样式集中在四个文件，组件一律使用令牌（`admin.css` 复用 `site.css` 的令牌，不重复定义 `:root`），不写魔法值：
 
 | 文件 | 内容 |
 | --- | --- |
 | `assets/css/site.css` | 令牌 + 基础重置 + 背景层 + 导航 + 按钮 + 表单 + 标签徽标 + 卡片 + 页脚 + 弹窗 + 反馈 |
 | `assets/css/articles.css` | 文章列表 + 阅读页与正文排版 + 编辑器 + 自测页 + 打印导出 |
+| `assets/css/motion.css` | 动效层：首屏入场、滚动揭示、图片淡入、主题扩散、目录滑轨、交互微反馈（只动 `opacity` / `transform` / `clip-path`） |
 | `admin/admin.css` | 后台专用设计系统：侧栏外壳、视图容器、统计卡片、数据表格、图片墙、危险操作区 |
 
 令牌分五类：
@@ -337,6 +370,10 @@ node tools/test-ai.mjs         # AI 生成：提示词组装、响应解析、�
 
 - **不响应 `prefers-reduced-motion`**：动画按设备是否支持 hover 决定是否运行，
   首页三体运动始终运行。这是站点所有者的主动选择。
+- **动效独立成层**（`assets/css/motion.css`）：过渡与动画集中在一个文件，与布局、排版分离，
+  调节奏不碰样式、调样式不碰动效。两条自我约束：只动 `opacity` / `transform` / `clip-path`，
+  不触碰会触发重排的属性；凡是靠 JS 触发的效果，脚本不跑就等于"没写"——默认状态必须完全正常
+  显示，绝不把内容用动画永久藏住（`.reveal`、图片淡入、目录滑轨都遵守这条）。
 - **编辑器不做完整 HTML 保真**：只保证受支持词汇表的语义往返，未知标签保留文字、
   丢弃样式，避免把杂乱的外来 HTML 带进正文。
 - **转义策略**：行内文本不做 Markdown 转义（否则公式里的 `$`、TeX 里的 `\` 会被破坏），

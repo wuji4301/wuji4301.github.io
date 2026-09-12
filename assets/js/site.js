@@ -32,9 +32,76 @@
         _watchers.push(fn);
         if (_watchers.length === 1) {
             global.addEventListener('scroll', scheduleFrame, { passive: true });
+            global.addEventListener('scroll', remeasureSoon, { passive: true });
             global.addEventListener('resize', scheduleFrame);
         }
         fn();
+    }
+
+    /* --------------------------------------------------- 文档尺寸缓存
+       正文里的公式、图片是异步补齐的，滚动高度会随之中途变化；但绝不能因此
+       在每一帧的滚动里去读 scrollHeight / getBoundingClientRect —— 那是一次
+       强制同步布局，页面越长、元素越多，滚动掉帧越厉害。
+       这里统一改用 ResizeObserver：只在内容真正变高变矮时重测一次，并把结果
+       与版本号一起缓存起来，滚动帧里只读缓存。 */
+    var _metrics = { scrollable: 0, viewport: 0, version: 0 };
+    var _metricsRO = null;
+
+    function remeasure() {
+        _metrics.viewport = global.innerHeight;
+        _metrics.scrollable = root.scrollHeight - _metrics.viewport;
+        _metrics.version++;
+        scheduleFrame();     // 内容变化后重跑一次各 watcher，避免读数滞后一帧
+    }
+
+    /* ResizeObserver 只保证"变化时回调过"，不保证"最后一次变化一定回调到"：
+       图片/字体补齐、卡片后插入，都可能刚好收尾在回调之后。可滚动高度只要差
+       几个像素，"滚到底就点亮末尾区块"（阈值 2px / 4px）和阅读进度条就都会
+       失效 —— 末尾的「联系」永远点不亮正是这么来的。每帧读 scrollHeight 会
+       强制同步布局，所以只在滚动停下来之后补测一次。 */
+    var _idleTimer = 0;
+    function remeasureSoon() {
+        global.clearTimeout(_idleTimer);
+        _idleTimer = global.setTimeout(function () {
+            _idleTimer = 0;
+            remeasure();
+        }, 150);
+    }
+
+    function ensureMetrics() {
+        if (_metricsRO || _metrics._ready) return;
+        _metrics._ready = true;
+        remeasure();
+        // 带 #锚点 直接进来时不一定会有滚动事件，靠 load 再校准一次
+        if (doc.readyState !== 'complete') global.addEventListener('load', remeasureSoon);
+        if ('ResizeObserver' in global) {
+            _metricsRO = new global.ResizeObserver(remeasure);
+            _metricsRO.observe(root);
+            if (doc.body) _metricsRO.observe(doc.body);
+        } else {
+            global.addEventListener('resize', remeasure);
+        }
+    }
+
+    /** 元素到文档顶部的距离。用 offsetTop 逐级累加而非 getBoundingClientRect：
+        同样是布局读数，但不受祖先 transform 影响 —— 页面首屏那些"上浮"过渡
+        不会让缓存下来的位置偏掉。只在内容尺寸变化时调用，不进滚动帧。 */
+    function absTop(el) {
+        var t = 0;
+        while (el) { t += el.offsetTop; el = el.offsetParent; }
+        return t;
+    }
+
+    /** 位置缓存：尺寸版本号变了才重算，滚动帧里只做数值比较 */
+    function makeTopCache(elements) {
+        var tops = [], ver = -1;
+        return function () {
+            if (ver !== _metrics.version) {
+                for (var i = 0; i < elements.length; i++) tops[i] = absTop(elements[i]);
+                ver = _metrics.version;
+            }
+            return tops;
+        };
     }
 
     /* ------------------------------------------------------------ 主题 */
@@ -46,14 +113,37 @@
             root.setAttribute('data-theme', t);
             if (btn) btn.textContent = t === 'dark' ? '\u263E' : '\u2600\uFE0E';
         }
-        apply(root.getAttribute('data-theme') || 'dark');
-        if (btn) {
-            btn.addEventListener('click', function () {
-                var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-                apply(next);
-                try { localStorage.setItem('wj-theme', next); } catch (e) { void e; }
-            });
+        function save(t) {
+            try { localStorage.setItem('wj-theme', t); } catch (e) { void e; }
         }
+        apply(root.getAttribute('data-theme') || 'dark');
+
+        /* 切主题：以按钮为圆心画一个圆，把新主题"推"出来。
+           圆心与半径在切换之前算好，写进 CSS 变量交给 motion.css 做 clip-path
+           动画。不支持 View Transitions 的浏览器直接切，不做降级动画 —— 过渡是
+           加分项，不该为了它在老浏览器上引入第二种代码路径。 */
+        function switchTheme() {
+            var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            if (!btn || typeof doc.startViewTransition !== 'function') { apply(next); save(next); return; }
+
+            var box = btn.getBoundingClientRect();
+            var cx = box.left + box.width / 2;
+            var cy = box.top + box.height / 2;
+            // 取到最远角的距离，保证圆扩到最后能盖满整个视口
+            var far = Math.hypot(Math.max(cx, global.innerWidth - cx),
+                                 Math.max(cy, global.innerHeight - cy));
+            root.style.setProperty('--vt-x', cx + 'px');
+            root.style.setProperty('--vt-y', cy + 'px');
+            root.style.setProperty('--vt-r', far + 'px');
+            root.classList.add('theme-vt');     // 必须在快照之前挂上，新快照才吃到这条规则
+
+            var vt = doc.startViewTransition(function () { apply(next); save(next); });
+            // 成功与被中途打断都要摘掉标记，否则下一次切换会莫名其妙地沿用圆形动画
+            var done = function () { root.classList.remove('theme-vt'); };
+            vt.finished.then(done, done);
+        }
+
+        if (btn) btn.addEventListener('click', switchTheme);
         var onSchemeChange = function (e) {
             var saved = null;
             try { saved = localStorage.getItem('wj-theme'); } catch (err) { void err; }
@@ -136,15 +226,19 @@
         if (!anchors.length) { apply(pageHref); return; }
 
         // 带页内锚点的页面（首页）：滚到哪个区块就高亮哪个，回到顶部则高亮首页
+        ensureMetrics();
+        var topsOf = makeTopCache(anchors.map(function (a) { return a.el; }));
         function spy() {
             var y = global.scrollY;
+            var tops = topsOf();
             var current = null;
-            anchors.forEach(function (a) {
-                if (a.el.getBoundingClientRect().top <= 120) current = a.href;
-            });
+            for (var i = 0; i < anchors.length; i++) {
+                if (tops[i] - y <= 120) current = anchors[i].href;
+            }
             // 已经滚到页面底部：直接高亮最后一个区块，
             // 否则矮视口下末尾区块永远够不到判定线（页面滚不动了）。
-            if (y + global.innerHeight >= root.scrollHeight - 2) {
+            // 页面压根滚不动时（scrollable <= 0）没有"到底"一说，不该点亮末尾项。
+            if (_metrics.scrollable > 0 && y >= _metrics.scrollable - 2) {
                 current = anchors[anchors.length - 1].href;
             }
             apply(current || pageHref);
@@ -207,6 +301,8 @@
         var progress = doc.getElementById('readingProgress') || doc.getElementById('progress');
         var lastP = -1;
 
+        ensureMetrics();     // 订阅文档尺寸变化；滚动帧里只读缓存，不做布局查询
+
         if (toTop) toTop.addEventListener('click', scrollToTop);
 
         watchOnFrame(function () {
@@ -214,12 +310,9 @@
             if (nav) nav.classList.toggle('scrolled', y > 12);
             if (toTop) toTop.classList.toggle('show', y > 600);
             if (!progress) return;
-            // 文档高度在这里现算：正文（含公式、图片）是异步渲染的，
-            // 只在初始化时测量会把进度条永久钉死在错误的比例上。
-            var docH = root.scrollHeight - global.innerHeight;
             var p = 0;
-            if (docH > global.innerHeight * 0.35 && docH > 0) {
-                p = Math.max(0, Math.min(1, y / docH));
+            if (_metrics.scrollable > _metrics.viewport * 0.35 && _metrics.scrollable > 0) {
+                p = Math.max(0, Math.min(1, y / _metrics.scrollable));
             }
             if (p !== lastP) {
                 lastP = p;
@@ -265,6 +358,58 @@
         });
     }
 
+    /* ------------------------------------------------------ 图片加载淡入 */
+
+    /* 图片是异步到位的，直接冒出来总像"闪"了一下。这里在它还没就绪时先压成透明，
+       load 之后再淡上来。
+       关键取舍：两个类都只由 JS 添加 —— 脚本没跑、报错，或图片压根还没有 src 时，
+       图片就是最普通的样子，绝不会出现"内容被动画永久藏住"。缓存命中的图片
+       （complete 且已有尺寸）直接跳过，不补一次无意义的闪烁。
+       一处托管全站：初始扫一遍，之后交给 MutationObserver 接手动态插入的图片
+       （列表重排、正文渲染、头像赋值都走这条路），各页面脚本不用自己记得调用。 */
+    var _imgFadeBound = false;
+
+    function markImage(img) {
+        if (!img || img.getAttribute('data-fade') !== null) return;
+        var src = img.getAttribute('src');
+        if (!src || !src.trim()) return;                    // 还没挂 src 的占位图，不藏
+        img.setAttribute('data-fade', '');                  // 标记已托管，重复扫描不再处理
+        if (img.complete && img.naturalWidth > 0) return;   // 已在缓存里，直接呈现
+        img.classList.add('img-loading');
+    }
+
+    function scanImages(scope) {
+        if (!scope || scope.nodeType !== 1) return;
+        if (scope.tagName === 'IMG') { markImage(scope); return; }
+        if (!scope.querySelectorAll) return;
+        var list = scope.querySelectorAll('img');
+        for (var i = 0; i < list.length; i++) markImage(list[i]);
+    }
+
+    /** load / error 都不冒泡，只能在捕获阶段统一接住（换 src 也能接到） */
+    function settleImage(e) {
+        var img = e.target;
+        if (!img || img.tagName !== 'IMG' || !img.classList) return;
+        img.classList.remove('img-loading');
+        if (e.type === 'load') img.classList.add('img-in');   // 失败就直接显形，不留透明
+    }
+
+    function initImageFade() {
+        if (_imgFadeBound) return;
+        _imgFadeBound = true;
+        doc.addEventListener('load', settleImage, true);
+        doc.addEventListener('error', settleImage, true);
+        scanImages(doc.body || root);
+        if ('MutationObserver' in global) {
+            new global.MutationObserver(function (records) {
+                for (var i = 0; i < records.length; i++) {
+                    var added = records[i].addedNodes;
+                    for (var j = 0; j < added.length; j++) scanImages(added[j]);
+                }
+            }).observe(doc.body || root, { childList: true, subtree: true });
+        }
+    }
+
     /** 阅读页目录：滚动时高亮当前章节 */
     function initTOC(container, tocEl) {
         if (!container || !tocEl) return;
@@ -280,23 +425,44 @@
         if (!ids.length) return;
         if (tocEl.getAttribute('data-toc-bound')) return;   // 避免重复绑定
         tocEl.setAttribute('data-toc-bound', '');
+        ensureMetrics();
         var lastActive = null;
+        var navEl = tocEl.querySelector('nav');
+
+        /* 目录滑轨：把 nav 上的 ::before 平移到当前项。offsetTop / offsetHeight 是
+           布局读数，所以只在活动项真的换了的时候读一次（不是每帧），且读之前不写
+           样式 —— 读写不交替，不会触发多余的同步布局。 */
+        function moveRail(id) {
+            if (!navEl) return;
+            var link = id ? map[id].link : null;
+            if (!link) { navEl.removeAttribute('data-toc-active'); return; }
+            navEl.style.setProperty('--toc-y', link.offsetTop + 'px');
+            navEl.style.setProperty('--toc-h', link.offsetHeight + 'px');
+            navEl.setAttribute('data-toc-active', '');
+        }
+
+        // 标题位置缓存：尺寸版本变了才重算，滚动帧里只做数值比较
+        var topsOf = makeTopCache(ids.map(function (id) { return map[id].el; }));
+
         function update() {
+            var tops = topsOf();
+            var y = global.scrollY;
             var best = null, bestTop = -Infinity;
-            ids.forEach(function (id) {
-                var top = map[id].el.getBoundingClientRect().top - 120;
-                if (top <= 0 && top > bestTop) { bestTop = top; best = id; }
-            });
+            for (var i = 0; i < ids.length; i++) {
+                var top = tops[i] - 120 - y;
+                if (top <= 0 && top > bestTop) { bestTop = top; best = ids[i]; }
+            }
             // 末尾兜底：只按"越过激活线"判定时，最后一节常常永远轮不到它 ——
             // 结尾的段落短、后面又跟着版权与上一篇/下一篇，页面根本没有能继续
             // 滚动的余量，小标题就压不到那条线。已经到底了就把末尾一项点亮。
-            if (best && root.scrollHeight - global.innerHeight - global.scrollY <= 4) {
+            if (best && _metrics.scrollable > 0 && _metrics.scrollable - y <= 4) {
                 best = ids[ids.length - 1];
             }
             if (best === lastActive) return;
             lastActive = best;
             links.forEach(function (a) { a.classList.remove('active'); });
             if (best) map[best].link.classList.add('active');
+            moveRail(best);
         }
         watchOnFrame(update);
     }
@@ -314,6 +480,7 @@
         initMenu: initMenu,
         initNavActive: initNavActive,
         initReveal: initReveal,
+        initImageFade: initImageFade,
         initScrollUI: initScrollUI,
         scrollToTop: scrollToTop,
         hydrateImages: hydrateImages,
@@ -326,6 +493,7 @@
             initMenu();
             initNavActive();
             initReveal();
+            initImageFade();
             initScrollUI();
         }
     };

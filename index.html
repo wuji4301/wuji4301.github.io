@@ -17,6 +17,7 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23101114'/%3E%3Ctext x='50' y='71' font-size='58' font-weight='600' text-anchor='middle' fill='%23f2f2f2' font-family='PingFang SC,Microsoft YaHei,sans-serif'%3E%E6%97%A0%3C/text%3E%3C/svg%3E" />
     <link rel="stylesheet" href="assets/css/site.css" />
     <link rel="stylesheet" href="assets/css/articles.css" />
+    <link rel="stylesheet" href="assets/css/motion.css" />
     <style>
         /* 首页专属：Hero 与联系区 */
 
@@ -110,7 +111,7 @@
             <span>无极</span>
         </a>
         <div class="nav-links">
-            <a href="index.html" class="active">首页</a>
+            <a href="#top" class="active">首页</a>
             <a href="#latest">文章</a>
             <a href="#contact">联系</a>
         </div>
@@ -122,7 +123,7 @@
     </nav>
     <!-- 移动端下拉菜单 -->
     <div class="mobile-menu" id="mobileMenu">
-        <a href="index.html" class="active">首页</a>
+        <a href="#top" class="active">首页</a>
         <a href="#latest">文章</a>
         <a href="#contact">联系</a>
     </div>
@@ -148,7 +149,6 @@
         <div class="section-head reveal">
             <div>
                 <h2>最新文章</h2>
-                <p>技术笔记、数学推导与随手记录。</p>
             </div>
             <a class="btn btn-ghost btn-sm" href="articles.html">查看全部</a>
         </div>
@@ -171,7 +171,7 @@
     </section>
 
     <!-- 页脚 -->
-    <footer class="footer">
+    <footer class="footer reveal">
         <div class="wrap footer-inner">
             <div class="f-brand">
                 <a class="brand" href="#top">
@@ -280,8 +280,8 @@
             function readTheme() {
                 THEME = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
                 P = THEME === 'light'
-                    ? { add: 'source-over', bgOn: false, bloom: 0, halo: 0.30, core: null, starMul: 0.5 }
-                    : { add: 'lighter', bgOn: true, bloom: 0.9, halo: 0.62, core: '255,255,255', starMul: 1 };
+                    ? { add: 'source-over', bgOn: false, bloom: 0, core: null, starMul: 0.5 }
+                    : { add: 'lighter', bgOn: true, bloom: 0.9, core: '255,255,255', starMul: 1 };
                 bgDirty = true;
                 if (bodies) {
                     for (var i = 0; i < 3; i++) { if (bodies[i]) bodies[i].c = COLORS[THEME][i]; }
@@ -427,10 +427,11 @@
             }
 
             var simTime = 0, last = 0, rafOn = false, visible = true;
+            var pageVisible = !document.hidden;   // 标签页是否在前台
             // 真实 rAF 间隔：用它判断机器能不能跑满，而不是用被主动节流后的绘制间隔
             var _rafPrev = 0, _rawSum = 0, _rawN = 0;
             function step(now) {
-                if (!visible) { rafOn = false; return; }
+                if (!visible || !pageVisible) { rafOn = false; return; }
                 requestAnimationFrame(step);
                 if (_rafPrev) { _rawSum += now - _rafPrev; _rawN++; }
                 _rafPrev = now;
@@ -692,12 +693,13 @@
                     spawnParts(i, proj[i].x, proj[i].y, proj[i].r);
                 }
 
-                /* ---------- 轨迹：外层辉光（按宽度分档）+ 内层亮芯（按亮度分档） ----------
-                   分档合批把每帧上千次 stroke 压到几十次，移动端也能跑满帧。 */
+                /* ---------- 轨迹：单层亮芯（按亮度分档） ----------
+                   不做外层辉光，轨道是一条干净的实线；分档合批把每帧上千次 stroke
+                   压到几十次，移动端也能跑满帧。 */
                 ctx.lineJoin = 'round';
                 ctx.lineCap = 'round';
                 ctx.globalCompositeOperation = P.add;
-                var WBUCK = 3, ABUCK = 8, coreMul = P.bgOn ? 1 : 0.62;
+                var ABUCK = 8, coreMul = P.bgOn ? 1 : 0.62;
                 for (i = 0; i < 3; i++) {
                     var tp = trail[i], tn = tp.length;
                     if (tn < 2) continue;
@@ -711,23 +713,6 @@
                     }
                     var col = bodies[i].c, brr = proj[i].r;
                     var wb, lo, hi, mid, cnt, depSum;
-                    for (wb = 0; wb < WBUCK; wb++) {
-                        lo = wb / WBUCK; hi = (wb + 1) / WBUCK; mid = (lo + hi) / 2;
-                        ctx.beginPath(); cnt = 0; depSum = 0;
-                        for (t = 1; t < tn; t++) {
-                            var fw = t / tn;
-                            if (fw <= lo || fw > hi) continue;
-                            ctx.moveTo(_tx[t - 1], _ty[t - 1]);
-                            ctx.lineTo(_tx[t], _ty[t]);
-                            depSum += 0.5 * (_tp[t - 1] + _tp[t]);
-                            cnt++;
-                        }
-                        if (!cnt) continue;
-                        var depw = Math.max(0.4, Math.min(1.7, depSum / cnt));
-                        ctx.lineWidth = Math.max(1, brr * 0.5 * mid * depw * 3.4);
-                        ctx.strokeStyle = hexA(col, P.halo * 0.30 * mid * coreMul);
-                        ctx.stroke();
-                    }
                     for (wb = 0; wb < ABUCK; wb++) {
                         lo = wb / ABUCK; hi = (wb + 1) / ABUCK; mid = (lo + hi) / 2;
                         ctx.beginPath(); cnt = 0; depSum = 0;
@@ -741,7 +726,8 @@
                         }
                         if (!cnt) continue;
                         var depc = Math.max(0.4, Math.min(1.7, depSum / cnt));
-                        ctx.lineWidth = Math.max(0.6, brr * 0.34 * mid * depc);
+                        // 去掉外层辉光后线宽略微加粗，让轨道仍看得清
+                        ctx.lineWidth = Math.max(0.7, brr * 0.46 * mid * depc);
                         ctx.strokeStyle = hexA(col, 0.9 * mid * mid * coreMul);
                         ctx.stroke();
                     }
@@ -768,28 +754,25 @@
                     }
                 }
 
-                /* ---------- 天体：远的先画；高光朝向质心，随运动实时偏移 ---------- */
+                /* ---------- 天体：远的先画；高光朝向质心，随运动实时偏移 ----------
+                   不再在球体周围铺一层大范围光晕，本体贴图的柔和边缘就够用，
+                   三颗球看起来是"实体"而不是一团发光的雾。 */
                 var order = drawOrder.sort(function (a, b) { return proj[a].depth - proj[b].depth; });
                 var lcx = W / 2, lcy = H / 2;
                 for (k = 0; k < 3; k++) {
                     i = order[k];
                     var pj = proj[i];
                     var br = pj.r * (0.9 + 0.18 * Math.min(1, 1.7 - pj.persp));
-                    glowAt(ctx, hexRGB(pj.c), pj.x, pj.y, br * 4.6, P.halo * 0.34);
                     bodyInto(ctx, pj.x, pj.y, br, pj.c, lcx - pj.x, lcy - pj.y);
                 }
 
-                /* ---------- 泛光：低分辨率缓冲 → 模糊 → 叠加 ---------- */
+                /* ---------- 泛光：低分辨率缓冲 → 模糊 → 叠加 ----------
+                   只让粒子尘埃参与，天体本体不再进缓冲 —— 否则放大回来的柔光
+                   又会绕着三颗球形成一圈光晕。 */
                 if (BLOOM_ON && P.bloom > 0) {
                     blx.globalCompositeOperation = 'source-over';
                     blx.clearRect(0, 0, W, H);
                     blx.globalCompositeOperation = 'lighter';
-                    for (k = 0; k < 3; k++) {
-                        i = order[k];
-                        var pb = proj[i];
-                        glowAt(blx, hexRGB(pb.c), pb.x, pb.y, pb.r * 5.2, 0.34);
-                        bodyInto(blx, pb.x, pb.y, pb.r, pb.c, lcx - pb.x, lcy - pb.y);
-                    }
                     for (i = 0; i < 3; i++) {
                         var pq = parts[i];
                         for (k = 0; k < pq.length; k++) {
@@ -950,6 +933,17 @@
                     ob.textContent = musicOn ? '关闭音乐' : '开启音乐';
                 });
             })();
+
+            // 切到后台标签页时 rAF 本来就会被浏览器暂停，但回来时时间戳会跳一大截，
+            // 容易污染上面的帧率采样、把好机器误判成"跑不动"而降档。
+            // 这里显式暂停并清空计时基准，恢复时和首次启动走同一条路径。
+            document.addEventListener('visibilitychange', function () {
+                pageVisible = !document.hidden;
+                if (pageVisible && visible && !rafOn) {
+                    rafOn = true; last = 0; _rafPrev = 0; _rawSum = 0; _rawN = 0;
+                    requestAnimationFrame(step);
+                }
+            });
 
             // 仅在画布所在层可见时运行，离开视口暂停，省 CPU
             if ('IntersectionObserver' in window) {

@@ -6,7 +6,7 @@ import { readFile, writeFile, mkdir, rm, cp } from 'node:fs/promises';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { publish, cleanArticle } from './publish.mjs';
+import { publish, cleanArticle, unresolvedRefs } from './publish.mjs';
 import { build } from './build-articles.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -262,6 +262,53 @@ async function main() {
       dryDel.removed.length === 1 && /删除 articles\/zz-test-published\.json/.test(dryDelLog.text()),
       dryDelLog.text().slice(-400));
     t('dry-run 未真的删除', await exists(join(ARTICLES, 'zz-test-published.json')));
+
+    /* ---------------------------------------------------- img:// 残留 */
+
+    // 命令行拿不到图片二进制，img:// 只能靠人事后替换 —— 但至少要逐条点名。
+    // 封面漏换是踩过的坑：正文换好了，封面带着 img:// 上线，公开站点上就是一个裂图。
+    console.log('\n== 8.6. img:// 残留点名 ==');
+    t('unresolvedRefs 认出正文里的残留',
+      unresolvedRefs([{ id: 'a', title: 'A', body: 'x img://i1' }])[0].fields.join(',') === '正文');
+    t('unresolvedRefs 认出封面里的残留',
+      unresolvedRefs([{ id: 'a', title: 'A', cover: 'img://i1' }])[0].fields.join(',') === '封面');
+    t('unresolvedRefs 正文与封面都报',
+      unresolvedRefs([{ id: 'a', title: 'A', cover: 'img://i1', body: 'x img://i1' }])[0].fields.join(',') === '正文,封面');
+    t('换好的文稿不上榜',
+      unresolvedRefs([{ id: 'a', title: 'A', cover: 'articles/img/a.png', body: '有图' }]).length === 0);
+    t('空输入不炸', unresolvedRefs(null).length === 0);
+
+    const dirtyPackPath = join(scratch, 'dirty-cover.json');
+    const dirtyPack = {
+      format: 'wuji-blog-publish',
+      version: 1,
+      counts: { articles: 1, published: 1, drafts: 0, images: 1 },
+      articles: [{
+        id: 'zz-test-badcover', slug: 'zz-test-badcover', title: '测试：封面没换',
+        cover: 'img://img-test-1',
+        format: 'markdown', status: 'published',
+        createdAt: '2026-02-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z',
+        body: '正文里没有图，只有封面引用。\n'
+      }],
+      images: [{ id: 'img-test-1', name: 'img-test-1.png', type: 'image/png', size: 68 }]
+    };
+    await writeFile(dirtyPackPath, JSON.stringify(dirtyPack, null, 2), 'utf8');
+
+    const badDryLog = makeLog();
+    const badDry = await publish({ packPath: dirtyPackPath, dryRun: true, log: badDryLog.fn });
+    t('dry-run 也会点名残留', badDry.unresolved.length === 1 && /封面/.test(badDryLog.text()),
+      badDryLog.text().slice(-500));
+
+    const badLog = makeLog();
+    const badRes = await publish({ packPath: dirtyPackPath, log: badLog.fn });
+    t('返回值带上未替换的文章',
+      badRes.unresolved.length === 1 && badRes.unresolved[0].id === 'zz-test-badcover',
+      JSON.stringify(badRes.unresolved));
+    t('点名时带上文章标题', badLog.text().indexOf('测试：封面没换') !== -1, badLog.text().slice(-500));
+    t('点名时提醒改用一键写入', /一键写入/.test(badLog.text()), badLog.text().slice(-500));
+    t('封面里的 img:// 原样落盘（命令行走不了图库，只能留着提示）',
+      (await readJSON(join(ARTICLES, 'zz-test-badcover.json'))).cover === 'img://img-test-1');
+    await publish({ deleteIds: ['zz-test-badcover'], log: () => {} });
 
     /* ---------------------------------------------------- 错误处理 */
 

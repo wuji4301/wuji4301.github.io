@@ -74,6 +74,7 @@
     <script src="../assets/js/editor.js"></script>
     <script src="../assets/js/export-pdf.js"></script>
     <script src="js/ai.js"></script>
+    <script src="js/localwrite.js"></script>
     <script>
     (function () {
         'use strict';
@@ -722,6 +723,99 @@
         }
 
         /* ================================================================
+           8.6 写入本地文件夹（离线：只验纯函数与配置，不弹目录选择器、不写磁盘）
+           ================================================================ */
+        function testLocalWrite() {
+            suite('8.6 · 写入本地文件夹（离线）');
+            var LW = window.WJLocalWrite;
+            if (!check('本地写入模块已载入', !!LW, 'admin/js/localwrite.js 未加载？')) return Promise.resolve();
+
+            eq('文章目录固定为 articles/', LW.ARTICLES_DIR, 'articles');
+            eq('图片目录在 articles/img', LW.IMG_DIR, 'articles/img');
+            eq('嵌入数据文件名固定', LW.DATA_FILE, 'articles-data.js');
+            check('能判断浏览器支持情况', typeof LW.isSupported() === 'boolean');
+
+            // 这节会写 localStorage：先备份本机配置，跑完原样还原
+            var backup = null;
+            try { backup = localStorage.getItem(LW.STORAGE_KEY); } catch (e) { backup = null; }
+
+            LW.writeConfig({ siteUrl: 'https://me.github.io/' });
+            eq('站点地址去掉结尾斜杠', LW.readConfig().siteUrl, 'https://me.github.io');
+            LW.clearConfig();
+            eq('清除后回到默认值', LW.readConfig().siteUrl, '');
+
+            eq('img:// 换成本地路径', LW.applyImages('x img://a', { a: 'articles/img/a.png' }), 'x articles/img/a.png');
+            eq('找不到的图片保留原样', LW.applyImages('x img://b', {}), 'x img://b');
+            eq('扩展名优先看文件名', LW.extOf({ name: 'p.webp', type: 'image/png' }), 'webp');
+            eq('看 MIME 兜底', LW.extOf({ name: 'noext', type: 'image/jpeg' }), 'jpg');
+
+            // 封面是第二个 img:// 入口：漏掉它，封面就会带着 img:// 上线，在公开站点变成裂图
+            eq('封面里的图片也会被收集', LW.collectImageIds([{ body: '', cover: 'img://c1' }]).join(','), 'c1');
+            eq('正文与封面的图片合并去重',
+                LW.collectImageIds([{ body: 'img://p1', cover: 'img://p1' }]).join(','), 'p1');
+            var withCover = LW.applyImagesToArticle(
+                { id: 'k', title: 'K', cover: 'img://c1', body: '图 img://b1' },
+                { b1: 'articles/img/b1.png', c1: 'articles/img/c1.jpg' }
+            );
+            eq('正文与封面一起换成相对路径', withCover.body + '|' + withCover.cover,
+                '图 articles/img/b1.png|articles/img/c1.jpg');
+            eq('清单条目里的封面也换', LW.resolveEntryImages([{ id: 'k', cover: 'img://c1' }],
+                { c1: 'articles/img/c1.jpg' })[0].cover, 'articles/img/c1.jpg');
+
+            var plan = LW.buildPlan({
+                articles: [
+                    { id: 'k', title: 'K', status: 'published', updatedAt: '2026-01-02T00:00:00.000Z', body: 'b' },
+                    { id: 'd', title: 'D', status: 'draft', updatedAt: '2026-01-03T00:00:00.000Z', body: 'b' }
+                ],
+                deletions: [],
+                existing: [{ id: 'old', title: 'O', status: 'published', updatedAt: '2026-01-01T00:00:00.000Z', file: 'old.json' }]
+            });
+            eq('草稿不进写入清单', plan.publishable.length, 1);
+            eq('没动过的文章保留在清单里', plan.indexEntries.length, 2);
+            eq('清单按时间倒序', plan.indexEntries.map(function (a) { return a.id; }).join(','), 'k,old');
+            eq('旧文章要回读正文', plan.needBodies.join(','), 'old');
+
+            var del = LW.buildPlan({
+                articles: [],
+                deletions: ['old'],
+                existing: [{ id: 'old', updatedAt: 'x', file: 'old.json' }]
+            });
+            eq('删除标记摘下清单', del.indexEntries.length, 0);
+            eq('删除项带文件名', del.removed[0].file, 'old.json');
+
+            var texts = LW.fileTexts({
+                publishable: [{ id: 'k', title: 'K', status: 'published', cover: 'img://p', body: 'see img://p' }],
+                removed: [],
+                indexEntries: [{ id: 'k', title: 'K', status: 'published', cover: 'img://p', body: 'see img://p' }]
+            }, { p: 'articles/img/p.png' }, '2026-01-01T00:00:00.000Z');
+            var byPath = {};
+            texts.forEach(function (f) { byPath[f.path] = f.text; });
+            check('写出单篇文件', !!byPath['articles/k.json']);
+            contains('单篇正文里的图片已换路径', byPath['articles/k.json'], 'articles/img/p.png');
+            check('单篇文件里没有 img:// 残留', byPath['articles/k.json'].indexOf('img://') === -1);
+            contains('单篇封面已换成本地路径', byPath['articles/k.json'], '"cover": "articles/img/p.png"');
+            contains('清单封面也已换成本地路径', byPath['articles/index.json'], '"cover": "articles/img/p.png"');
+            check('清单里没有 img:// 残留', byPath['articles/index.json'].indexOf('img://') === -1);
+            contains('清单指向单篇文件', byPath['articles/index.json'], '"file": "k.json"');
+
+            var src = LW.embeddedSource([
+                { id: 'k', title: 'K', status: 'published', body: 'bb' },
+                { id: 'd', title: 'D', status: 'draft', body: 'dd' }
+            ]);
+            check('草稿不进嵌入式数据', src.indexOf('dd') === -1);
+            check('头部注释在第一行', src.indexOf(LW.DATA_HEADER) === 0);
+
+            contains('提交命令包含 git push', LW.gitCommand(plan), 'git push');
+            contains('提交信息带上标题', LW.commitMessage(plan), '《K》');
+
+            try {
+                if (backup === null) LW.clearConfig();
+                else localStorage.setItem(LW.STORAGE_KEY, backup);
+            } catch (e) { /* 隐私模式下写不了就算了 */ }
+            return Promise.resolve();
+        }
+
+        /* ================================================================
            清理
            ================================================================ */
         function cleanup() {
@@ -761,7 +855,7 @@
             document.getElementById('fixture').innerHTML = '';
 
             var chain = Promise.resolve();
-            var steps = [testMarkdown, testMath, testConvert, testStore, testEditor, testImportExport, testExportPDF, testEmbedded, testRepoArticles, testUtils, testAI, cleanup];
+            var steps = [testMarkdown, testMath, testConvert, testStore, testEditor, testImportExport, testExportPDF, testEmbedded, testRepoArticles, testUtils, testAI, testLocalWrite, cleanup];
             steps.forEach(function (fn) {
                 chain = chain.then(function () {
                     try {

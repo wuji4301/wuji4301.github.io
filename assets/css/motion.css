@@ -1,0 +1,182 @@
+/* ==========================================================================
+   无极博客 · 动效层
+
+   站点所有"过渡与动画"集中在这里，与 site.css / articles.css 分离维护：
+   调视觉时不必在动效规则里翻找，调节奏时也不会碰到布局。
+
+   读取 site.css 排版节奏块里的令牌，本文件不新造时长：
+     --dur-1 .18s   --dur-2 .28s   --dur-3 .4s
+     --ease-out cubic-bezier(.16,1,.3,1)
+     --ease-soft cubic-bezier(.22,1,.36,1)
+     --rd  错落延迟，默认 0s；需要错落时在元素上写 style="--rd:.08s"
+
+   两条自我约束：
+   1. 只动 opacity / transform / clip-path —— 不触碰会触发重排的属性。
+   2. 所有由 JS 驱动的效果，JS 不跑就等于没写：默认状态必须是"完全正常
+      显示"，绝不能出现内容被动画永久藏起来的情况。
+
+   注：本站沿用 site.css 的既有取舍 —— 不响应 prefers-reduced-motion。
+   ========================================================================== */
+
+/* 由 JS 在运行时写到元素上的自定义属性，这里给出休息值。
+   自定义属性总得有个声明处，var() 才不是悬空的；顺带把"哪些值由脚本控制"
+   记录在样式表里，改结构时一眼可见。
+   注意 --vt-r 的休息值刻意取"盖满视口"而不是 0：万一 .theme-vt 被挂上、
+   半径却没写进来，圆形就扩不开 —— 新主题会一直停在圆形之外，整屏卡在旧主题上。
+   往大了取，最坏情况也只是照常过渡一遍。 */
+:root {
+    --vt-x: 50%;
+    --vt-y: 50%;
+    --vt-r: 100vmax;
+    --toc-y: 0px;
+    --toc-h: 0px;
+}
+
+/* ==========================================================================
+   1. 首屏入场
+   ========================================================================== */
+
+/* 导航条：从视口上方滑入。
+   用 animation 而不是 transition，元素一出现就自己播，不需要等某个类被加上；
+   也不加 fill-mode —— 终止状态与元素常态一致，动画结束后交还控制权。 */
+.nav { animation: navIn .5s var(--ease-out); }
+@keyframes navIn {
+    from { opacity: 0; transform: translateY(-100%); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* 首页 Hero：标题 → 引导语 → 按钮 → 统计，自上而下依次浮现。
+   用 nth-child 排序而不是逐个写类名，改文案、加删元素都不用动样式。
+   必须带 backwards：延迟期间要停在 from，否则会先亮一下再开始动。 */
+.hero > * { animation: riseIn .6s var(--ease-out) backwards; }
+.hero > *:nth-child(1) { animation-delay: .04s; }
+.hero > *:nth-child(2) { animation-delay: .11s; }
+.hero > *:nth-child(3) { animation-delay: .19s; }
+.hero > *:nth-child(4) { animation-delay: .27s; }
+.hero > *:nth-child(5) { animation-delay: .35s; }
+@keyframes riseIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* ==========================================================================
+   2. 状态区（加载中 / 空态 / 出错）
+   --------------------------------------------------------------------------
+   列表页与文章页都用 .empty 承载这三种状态，文案是脚本换上去的。
+   从 hidden 切到可见时动画会重新起播，所以换文案、换状态都能自然浮现。
+   ========================================================================== */
+
+.empty { animation: softIn .4s var(--ease-out) backwards; }
+@keyframes softIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* ==========================================================================
+   3. 文章页编排
+   --------------------------------------------------------------------------
+   三层原本同时淡入，这里拉开成 head → layout → foot 的先后次序，
+   视线跟着往下走，比"整块一起亮"更接近翻页的感觉。
+   延迟写在 .article-ready 生效后的规则里：触发类和延迟同时到位，才会真的错开。
+   ========================================================================== */
+
+.article-page.article-ready .article-layout { transition-delay: .07s; }
+.article-page.article-ready .article-foot { transition-delay: .14s; }
+
+/* ==========================================================================
+   4. 图片加载淡入
+   --------------------------------------------------------------------------
+   脚本在图片"已经有 src 且还没就绪"时挂 .img-loading，load 事件里换成 .img-in。
+   两个类都由 JS 添加，所以脚本一旦没跑，图片就是最普通的样子 —— 不会被藏住。
+   已在缓存里的图片直接跳过，不补一次无意义的闪烁。
+   ========================================================================== */
+
+img.img-loading { opacity: 0; }
+img.img-in { opacity: 1; transition: opacity .5s var(--ease-soft); }
+/* 卡片封面自己带 transform 过渡（悬停放大），这里必须把 transform 通道补回去，
+   否则 .img-in 的 transition 会盖掉它，悬停缩放从平滑变成瞬跳。 */
+.post-cover.img-in { transition: opacity .5s var(--ease-soft), transform .5s var(--ease-out); }
+
+/* ==========================================================================
+   5. 主题切换：从按钮扩散的圆形揭示
+   --------------------------------------------------------------------------
+   走 View Transitions。site.js 在切主题前给 <html> 挂 .theme-vt 并写入
+   --vt-x / --vt-y（按钮中心）和 --vt-r（到最远角的距离），transition 结束再摘掉。
+   旧快照按住不动，新快照以圆形 clip-path 铺开，于是主题是"涨"出来的。
+   不支持 View Transitions 的浏览器不会走到这里，直接切换，没有任何副作用。
+   ========================================================================== */
+
+html.theme-vt::view-transition-old(root) { animation: none; }
+html.theme-vt::view-transition-new(root) {
+    clip-path: circle(0% at var(--vt-x, 50%) var(--vt-y, 50%));
+    animation: themeReveal .52s var(--ease-soft) both;
+}
+@keyframes themeReveal {
+    to { clip-path: circle(var(--vt-r, 100vmax) at var(--vt-x, 50%) var(--vt-y, 50%)); }
+}
+
+/* ==========================================================================
+   6. 目录滑动指示条
+   --------------------------------------------------------------------------
+   原本每一条 a 自带 border-left，切换章节时是"旧的灭、新的亮"，竖条在两个
+   位置之间没有连续性。这里改成 nav 上的一条滑轨，用 transform 平移过去。
+   --toc-y / --toc-h 由 site.js 在活动项变化时写入（只在变化时读一次布局）。
+
+   只有 data-toc-active 出现后滑轨才接管竖条；万一脚本没跑到，a.active 上原有的
+   border-left 仍在，目录不会失去当前位置的指示。
+   ========================================================================== */
+
+.toc nav { position: relative; }
+.toc nav::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 2px;
+    height: var(--toc-h, 0px);
+    border-radius: 0 2px 2px 0;
+    background: var(--accent);
+    opacity: 0;
+    transform: translateY(var(--toc-y, 0px));
+    transition: transform var(--dur-2) var(--ease-out),
+                height var(--dur-2) var(--ease-out),
+                opacity var(--dur-1) ease;
+}
+.toc nav[data-toc-active]::before { opacity: 1; }
+.toc nav[data-toc-active] a.active { border-left-color: transparent; }
+
+/* ==========================================================================
+   7. 交互微反馈
+   ========================================================================== */
+
+/* 页脚链接：下划线从左侧长出来。用 background-size 而不是伪元素，
+   省一个定位上下文，也不会和内边距打架。 */
+.f-links a {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-repeat: no-repeat;
+    background-position: 12px 100%;
+    background-size: 0 1px;
+    transition: color var(--dur-1) ease, background var(--dur-1) ease,
+                background-size var(--dur-2) var(--ease-out);
+}
+.f-links a:hover { background-size: calc(100% - 24px) 1px; }
+
+/* 复制按钮：成功后文字从"复制"变成"已复制"，原来的切换是硬跳。
+   给文字一个轻微的浮起，让状态变化被看见。 */
+.code-copy { transition: color var(--dur-1) ease, border-color var(--dur-1) ease,
+                         background var(--dur-1) ease, transform var(--dur-1) var(--ease-out); }
+.code-copy:active { transform: scale(.94); }
+.code-copy.done { animation: popOnce .34s var(--ease-out); }
+@keyframes popOnce {
+    0%   { transform: scale(1); }
+    38%  { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+
+/* 键盘焦点：只在键盘操作时出现，鼠标点击不打扰 */
+.card:focus-visible,
+.post-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    transition: outline-color var(--dur-1) ease;
+}

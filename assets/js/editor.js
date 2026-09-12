@@ -109,7 +109,7 @@
             '      <div class="field"><label for="ed-tags">标签</label>',
             '        <input class="input" id="ed-tags" placeholder="用逗号分隔，如：算法, 笔记"></div>',
             '      <div class="field"><label for="ed-cover">封面图链接（可选）</label>',
-            '        <input class="input" id="ed-cover" placeholder="articles/img/xxx.png"></div>',
+            '        <input class="input" id="ed-cover" placeholder="articles/img/xxx.png 或 img://图片id"></div>',
             '    </div>',
             '    <div class="side-block">',
             '      <div class="side-title">发布设置</div>',

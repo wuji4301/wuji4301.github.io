@@ -146,7 +146,7 @@
                 '<div class="d">生成 <code>articles.json</code>（内联全部正文），放到仓库 <code>articles/</code> 目录。</div></div>' +
                 '<button class="btn btn-ghost btn-sm" id="dlIndex" type="button">下载 articles.json</button></div>' +
                 '<div class="export-row"><div class="grow"><div class="t">下载本地图片</div>' +
-                '<div class="d">把文件放进 <code>articles/img/</code>，并把正文里的 <code>img://id</code> 改成对应相对路径。</div></div>' +
+                '<div class="d">把文件放进 <code>articles/img/</code>，并把正文和封面里的 <code>img://id</code> 改成对应相对路径。</div></div>' +
                 '<button class="btn btn-ghost btn-sm" id="dlImgs" type="button">下载图片</button></div>';
             UI.dialog({ title: '导出', body: wrap, width: '660px', actions: [{ label: '关闭', value: false }] });
 

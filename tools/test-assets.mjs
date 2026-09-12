@@ -68,6 +68,28 @@ for (const page of ALL_PAGES) {
   t(page + ' 无未定义的 id 引用', undef.length === 0, '未定义: ' + undef.join(', '));
 }
 
+console.log('\n== 3.5. 顶部导航锚点 ==');
+// 锚点写错名字不会报错，只会「点了没反应、永远不高亮」：initNavActive 会跳过
+// 找不到元素的锚点，那一项就再也轮不到 active。所以逐页对齐一遍。
+for (const page of ALL_PAGES) {
+  const html = await read(page);
+  const defined = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+  const dead = [...new Set([...html.matchAll(/href="#([A-Za-z0-9_-]+)"/g)].map((m) => m[1]))]
+    .filter((id) => !defined.has(id));
+  t(page + ' 页内锚点都有对应元素', dead.length === 0, '找不到元素: ' + dead.join(', '));
+}
+// 顶部导航里指向「本页自己」的链接会把点击变成整页重载（页面白屏重来一次）。
+// 首页与列表页都是单页，回到本页请用页内锚点。
+for (const page of PUBLIC_PAGES) {
+  const html = await read(page);
+  const nav = [
+    ...html.matchAll(/<nav class="nav"[\s\S]*?<\/nav>/g),
+    ...html.matchAll(/<div class="mobile-menu"[\s\S]*?<\/div>/g)
+  ].map((m) => m[0]).join('\n');
+  const self = new RegExp('href="' + page.replace(/\./g, '\\.') + '"');
+  t(page + ' 顶部导航不指向本页自己', !self.test(nav), '自链接会整页重载，请改用页内锚点');
+}
+
 console.log('\n== 4. 前后端隔离 ==');
 for (const page of PUBLIC_PAGES) {
   const html = await read(page);

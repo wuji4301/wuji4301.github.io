@@ -308,7 +308,7 @@
         }).join('');
     }
 
-    /** 文章卡片，列表页与首页共用；opts: { animate, delay, eager } */
+    /** 文章卡片，列表页与首页共用；opts: { animate, quick, delay, eager } */
     function cardHTML(a, opts) {
         opts = opts || {};
         var tags = tagChipsHTML(a.tags, 4);
@@ -316,7 +316,8 @@
             ? '<img class="post-cover" src="' + esc(a.cover) + '" alt="" ' +
               (opts.eager ? '' : 'loading="lazy" ') + 'decoding="async" onerror="this.remove()">'
             : '';
-        var cls = 'post-card' + (opts.animate ? ' card-in' : '');
+        var cls = 'post-card' + (opts.animate ? ' card-in' : '') +
+            (opts.animate && opts.quick ? ' card-in-quick' : '');
         var style = (opts.animate && opts.delay)
             ? ' style="animation-delay:' + opts.delay + 'ms"' : '';
         return '<a class="' + cls + '" href="' + articleURL(a) + '"' + style + '>' +
