@@ -41,6 +41,7 @@
             </div>
         </div>
         <div class="admin-top-actions">
+            <button class="btn btn-ghost btn-sm" id="aiBtn" type="button">AI 写稿</button>
             <button class="btn btn-ghost btn-sm" id="previewBtn" type="button">预览</button>
             <button class="btn btn-ghost btn-sm" id="exportBtn" type="button">导出</button>
             <button class="btn btn-ghost btn-sm" id="newBtn" type="button">新建</button>
@@ -73,6 +74,8 @@
     <script src="../assets/js/site.js"></script>
     <script src="../assets/js/export-pdf.js"></script>
     <script src="../assets/js/editor.js"></script>
+    <!-- AI 模块只在后台页面加载，公开页不引入（见 tools/test-assets.mjs） -->
+    <script src="js/ai.js"></script>
     <script src="js/editor-page.js"></script>
 </body>
 </html>

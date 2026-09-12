@@ -178,7 +178,7 @@ t('导出 PDF 解析 img:// 与相对图片路径', /img:\\\/\\\//.test(pdf) && 
 const css = await read('assets/css/articles.css');
 t('样式表提供打印排版', /@media print/.test(css) && /\.wj-print-root/.test(css));
 // 后台的导出逻辑已抽到 admin/js/ 模块，因此 WJExportPDF 的接线在「页面 + 后台模块」里一起校验
-const adminJs = (await Promise.all(['shell', 'dashboard', 'articles', 'images', 'publish', 'settings', 'editor-page']
+const adminJs = (await Promise.all(['shell', 'ai', 'dashboard', 'articles', 'images', 'publish', 'settings', 'editor-page']
   .map((n) => read('admin/js/' + n + '.js').catch(() => '')))).join('\n');
 const entryPages = [await read('article.html'), await read('admin/editor.html'), await read('admin/index.html')];
 t('阅读页 / 编辑器 / 管理系统都挂了导出 PDF 入口',
@@ -259,6 +259,40 @@ console.log('\n== 11. 资源前缀运行时解析（admin/ 子目录） ==');
     runMath(tag('assets/js/math.js'), [tag('assets/js/math.js')]));
   t('显式 data-wj-asset-base 优先',
     runMath({ getAttribute: (n) => (n === 'data-wj-asset-base' ? '../' : null) }, []) === '../vendor/katex/katex.min.css');
+}
+
+console.log('\n== 12. AI 生成只留在后台 ==');
+{
+  const ai = await read('admin/js/ai.js');
+  const adminShell = await read('admin/index.html');
+  t('AI 模块存在于 admin/js/', ai.length > 500);
+  t('默认模型是 DeepSeek V4.1（deepseek-flash）', /DEFAULTS[\s\S]{0,120}deepseek-flash/.test(ai));
+  t('默认走 DeepSeek 官方接口', /https:\/\/api\.deepseek\.com/.test(ai));
+  t('Key 存放位置写明是本机 localStorage', /localStorage/.test(ai) && new RegExp('wj-ai-config').test(ai));
+  t('代码里没有硬编码的 Key', !/[Aa]piKey\s*[:=]\s*['"]sk-/.test(ai));
+  t('AI 请求用 JSON 输出而非流式拼接', /json_object/.test(ai) && /stream: false/.test(ai));
+  const aiIdx = adminShell.indexOf('js/ai.js');
+  t('管理外壳加载 AI 模块', aiIdx !== -1);
+  t('AI 模块先于用到它的视图模块加载',
+    aiIdx !== -1 && aiIdx < adminShell.indexOf('js/images.js') && aiIdx < adminShell.indexOf('js/settings.js'));
+  for (const page of PUBLIC_PAGES) {
+    t('  ' + page + ' 不引用 AI 模块', (await read(page)).indexOf('ai.js') === -1);
+  }
+  const imagesJs = await read('admin/js/images.js');
+  t('images 视图保留「一键转文章」入口', /一键转文章/.test(imagesJs));
+  t('图片库上传只入库、不自动生成',
+    /AI\.saveImageFile\(f\)/.test(imagesJs) && /需要写稿就点它的「一键转文章」/.test(imagesJs),
+    '上传入口不应顺手调用 start()，生成必须由用户手动点按');
+  const editorHtml = await read('admin/editor.html');
+  t('编辑器提供手动「AI 写稿」按钮', /id="aiBtn"/.test(editorHtml) && /AI 写稿/.test(editorHtml));
+  t('编辑器页加载 AI 模块（否则按钮点了没反应）', /js\/ai\.js/.test(editorHtml));
+  const editorPage = await read('admin/js/editor-page.js');
+  t('AI 写稿是手动触发，覆盖前先确认',
+    /getElementById\('aiBtn'\)/.test(editorPage) && /AI 写稿会覆盖当前内容/.test(editorPage));
+  t('AI 写稿把结果回填进当前编辑器', /editor\.load\(out\.article\)/.test(editorPage));
+  const selftest = await read('admin/selftest.html');
+  t('自测页加载了 AI 模块（否则那一节会静默跳过）', /<script src="js\/ai\.js">/.test(selftest));
+  t('自测页的 AI 用例不发真实请求', /testAI[\s\S]*?未配置 Key 时拒绝调用/.test(selftest));
 }
 
 console.log(`\n结果: ${pass} 通过, ${fail} 失败, ${warn} 警告`);

@@ -73,6 +73,7 @@
     <script src="../assets/js/site.js"></script>
     <script src="../assets/js/editor.js"></script>
     <script src="../assets/js/export-pdf.js"></script>
+    <script src="js/ai.js"></script>
     <script>
     (function () {
         'use strict';
@@ -599,12 +600,16 @@
                     check('file:// 下通过 store 读到文章', fromEmbedded.length >= embedded.length,
                         '读到 ' + fromEmbedded.length + ' / 嵌入 ' + embedded.length);
                     var a = fromEmbedded[0];
-                    check('file:// 下文章含正文', !!(a && a.body && a.body.length > 100),
-                        a ? '正文长度 ' + (a.body || '').length : '无文章');
+                    var src = embedded.filter(function (x) { return x.id === a.id; })[0] || {};
+                    // 断言"正文原样读到"，而不是"正文够长"：篇幅由作者决定，
+                    // 一篇只有标题和公式的短文同样合法（同第 7 节的取舍）。
+                    check('file:// 下文章含正文', !!(a && a.body) && a.body === src.body,
+                        a ? '正文长度 ' + (a.body || '').length + ' / 嵌入 ' + (src.body || '').length : '无文章');
                     var box = document.createElement('div');
                     box.className = 'prose';
                     box.innerHTML = MD.render((a && a.body) || '');
-                    check('file:// 下正文可渲染', box.innerHTML.length > 500, '长度 ' + box.innerHTML.length);
+                    check('file:// 下正文可渲染', box.innerHTML.length > 0 && box.children.length > 0,
+                        '长度 ' + box.innerHTML.length);
                 } else {
                     check('HTTP 下读取文章（走 fetch 或回退嵌入数据）', res.repoCount >= embedded.length,
                         'repoCount=' + res.repoCount + ' / 嵌入 ' + embedded.length);
@@ -674,6 +679,49 @@
         }
 
         /* ================================================================
+           8.5 AI 生成（离线：只验纯函数与安全默认值，不发请求、不花钱）
+           ================================================================ */
+        function testAI() {
+            suite('8.5 · AI 生成（图片转文章 · 离线）');
+            var AI = window.WJAI;
+            if (!check('AI 模块已载入', !!AI, 'admin/js/ai.js 未加载？')) return Promise.resolve();
+
+            eq('默认模型是 DeepSeek V4.1 Flash', AI.DEFAULTS.model, 'deepseek-flash');
+            eq('默认走官方接口', AI.DEFAULTS.baseUrl, 'https://api.deepseek.com');
+
+            matches('提示词要求 1:1 转写', AI.SYSTEM_PROMPT, /1:1 转写/);
+            check('提示词不再要求扩写', !/600~1000/.test(AI.SYSTEM_PROMPT));
+
+            var msgs = AI.buildMessages('data:image/png;base64,AAAA', '写实一点');
+            eq('提示词带原样图片 data URL', msgs[1].content[1].image_url.url, 'data:image/png;base64,AAAA');
+            contains('提示词带上转写要求', msgs[1].content[0].text, '写实一点');
+
+            eq('能解析带围栏的 JSON', AI.extractJSON('```json\n{"title":"甲"}\n```').title, '甲');
+            check('解析不出来时返回 null', AI.extractJSON('这张图我不好说') === null);
+
+            var norm = AI.normalizeArticle({ title: '《题》', tags: 'a, b、, a' }, {});
+            eq('标题去掉书名号', norm.title, '题');
+            eq('标签去重', norm.tags.join('|'), 'a|b');
+
+            var art = AI.buildArticle({ title: 't', summary: 's', tags: [], alt: '图', body: '正文' }, { imageId: 'img-x' });
+            check('配图进正文开头且只写 img://',
+                art.body.indexOf('![图](img://img-x)') === 0, art.body.slice(0, 40));
+            eq('生成的是草稿', art.status, 'draft');
+            matches('401 被翻译成人话', AI.errorText(401, ''), /API Key/);
+
+            // 没有 Key 时必须立刻拒绝——绝不能偷偷把请求发出去
+            var saved = AI.readConfig();
+            AI.clearConfig();
+            return AI.chat([{ role: 'user', content: 'hi' }]).then(function () {
+                check('未配置 Key 时拒绝调用', false, '竟然把请求发出去了');
+            }, function (err) {
+                check('未配置 Key 时拒绝调用', /设置/.test(err.message), err.message);
+            }).then(function () {
+                if (saved.apiKey) AI.writeConfig(saved); else AI.clearConfig();
+            });
+        }
+
+        /* ================================================================
            清理
            ================================================================ */
         function cleanup() {
@@ -713,7 +761,7 @@
             document.getElementById('fixture').innerHTML = '';
 
             var chain = Promise.resolve();
-            var steps = [testMarkdown, testMath, testConvert, testStore, testEditor, testImportExport, testExportPDF, testEmbedded, testRepoArticles, testUtils, cleanup];
+            var steps = [testMarkdown, testMath, testConvert, testStore, testEditor, testImportExport, testExportPDF, testEmbedded, testRepoArticles, testUtils, testAI, cleanup];
             steps.forEach(function (fn) {
                 chain = chain.then(function () {
                     try {

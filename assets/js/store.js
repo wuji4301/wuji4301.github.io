@@ -599,7 +599,8 @@
         // 文章
         listAll: listAll, getArticle: getArticle, getLocalArticle: getLocalArticle,
         listLocalArticles: listLocalArticles, saveArticle: saveArticle, deleteArticle: deleteArticle,
-        loadRepoArticles: loadRepoArticles, loadRepoIndex: loadRepoIndex,
+        loadRepoArticles: loadRepoArticles, loadRepoArticle: loadRepoArticle,
+        loadRepoIndex: loadRepoIndex,
         clearRepoCache: clearRepoCache,
         // 删除标记（tombstone）：删除不区分线上线下，仓库落地由发布包携带
         listDeleted: listDeleted, markDeleted: markDeleted,

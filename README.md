@@ -18,7 +18,7 @@ HTML / CSS / JavaScript，公式引擎 KaTeX 也自托管在 `vendor/`。
 │  admin/index.html   管理外壳：hash 路由到概览 / 文章 / 图片 / 发布 / 设置五个视图  │
 │  admin/editor.html  编辑器：Markdown / 富文本双模式、LaTeX、图片                 │
 │  admin/selftest.html 浏览器端全链路自测                                        │
-│  admin/js/          后台模块（外壳、各视图、编辑器页逻辑）                        │
+│  admin/js/          后台模块（外壳、各视图、AI 生成、编辑器页逻辑）                │
 │  tools/             发布、部署、测试脚本                                        │
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -43,6 +43,7 @@ HTML / CSS / JavaScript，公式引擎 KaTeX 也自托管在 `vendor/`。
 
 ```
 写新文章  →  admin/editor.html        编辑、预览（自动保存到 IndexedDB）
+图片转文章 →  图片库图卡点「一键转文章」，或编辑器顶部「AI 写稿」（先在「设置」配 DeepSeek API Key）
 打包发布  →  admin/index.html「发布中心」点「打包发布」下载 articles-publish.json
 本地落地  →  node tools/publish.mjs "<下载目录>/articles-publish.json"
 提交发布  →  git add -A && git commit -m "更新文章" && git push
@@ -179,6 +180,24 @@ KaTeX 0.16.11 自托管于 `vendor/katex/`（65 个文件，约 1.35 MiB，含 w
 - **不劫持**：只有点了导出按钮（`<html>` 临时挂 `.wj-printing`）才接管整页排版，
   用户自己按 Ctrl/⌘+P 仍然打印页面原本的样子。
 
+### 6. AI 生成为什么不需要后端
+
+用 DeepSeek V4.1（`deepseek-flash`，原生多模态）读图，把图片内容 **1:1 转写**成标题 /
+摘要 / 标签 / Markdown 正文（照搬图里的文字、数据与要点，不做解释与扩写）。
+写稿一律**手动触发**，上传图片不会自动生成：
+
+- 图片库图卡的「一键转文章」：落成一篇草稿并进编辑器；
+- 编辑器顶部的「AI 写稿」：把结果写进当前这篇（已有内容时先弹覆盖确认）。
+
+- **直连而非中转**：DeepSeek 官方接口会回 CORS 头，`file://` 下 `Origin: null` 同样放行，
+  所以浏览器可以直接调——这与"管理后台不做成服务、不需要启停进程"的定位一致；
+- **Key 只属于本机**：写在 `localStorage`（`wj-ai-config`），不落文件、不进仓库；
+  代码在 `admin/js/ai.js`，随 `admin/` 一起物理不部署，线上没有这个入口；
+- **可测**：提示词组装、响应解析、错误翻译都是纯函数，网络层只依赖一个 `fetch`；
+  `test-ai.mjs` 用假 `fetch` / `FileReader` / `Image` 把整条链路跑通，不联网、不花钱；
+- **不碰发布链路**：生成结果一律是 `status: draft`，配图只写 `img://<id>`，
+  与"图片不内联""草稿要显式发布"这两条既有约定完全对齐。
+
 ## 目录结构
 
 ```
@@ -213,6 +232,7 @@ KaTeX 0.16.11 自托管于 `vendor/katex/`（65 个文件，约 1.35 MiB，含 w
 │   ├── admin.css         后台设计系统（仅后台加载）
 │   ├── js/
 │   │   ├── shell.js      后台外壳与数据层（路由、公共渲染助手）
+│   │   ├── ai.js         AI 生成：DeepSeek V4.1 图片转文章（不部署）
 │   │   ├── dashboard.js  概览视图
 │   │   ├── articles.js   文章管理视图
 │   │   ├── images.js     图片库视图
@@ -233,23 +253,24 @@ KaTeX 0.16.11 自托管于 `vendor/katex/`（65 个文件，约 1.35 MiB，含 w
 ```bash
 node tools/test-render.mjs     # Markdown 渲染器（88 项，自带极简 DOM 垫片）
 node tools/test-convert.mjs    # HTML ⇄ Markdown 往返（85 项）
-node tools/test-katex.mjs      # 真实 KaTeX 排版仓库文章 + 内置样本公式（28 项）
+node tools/test-katex.mjs      # 真实 KaTeX 排版仓库文章 + 内置样本公式（30 项）
 node tools/test-css.mjs        # 样式括号/变量/结构/令牌完整性（66 项）
 node tools/test-design.mjs     # WCAG 对比度、阶梯单调性、可访问性细节（63 项）
-node tools/test-assets.mjs     # 资源/脚本/隔离/路径前缀（90 项）
-node tools/test-data.mjs       # 嵌入式数据与 JSON 真源同源（13 项）
+node tools/test-assets.mjs     # 资源/脚本/隔离/路径前缀（109 项）
+node tools/test-data.mjs       # 嵌入式数据与 JSON 真源同源（23 项）
 node tools/test-publish.mjs    # 发布链路端到端，含删除标记、dry-run 与错误处理（59 项）
 node tools/test-store.mjs      # 数据层：删除标记、刷新后持久化、自愈（21 项，自带 IndexedDB 垫片）
+node tools/test-ai.mjs         # AI 生成：提示词组装、响应解析、错误翻译、端到端（75 项，假 fetch 不联网）
 ```
 
-共 **513 项断言**。`test-publish.mjs` 会完整备份并还原 `articles/`，跑完不留痕迹。
+共 **619 项断言**。`test-publish.mjs` 会完整备份并还原 `articles/`，跑完不留痕迹。
 
-`test-katex.mjs` 与 `test-data.mjs` 的项数随仓库文章数增减（当前仓库为空，故为 28 / 13）；
+`test-katex.mjs` 与 `test-data.mjs` 的项数随仓库文章数增减（当前仓库为空，故为 30 / 23）；
 其余各项与文章内容无关。`test-store.mjs` 用文件内固定样本注入仓库侧数据，仓库清空也不会变红。
 
 浏览器端全链路自测：直接双击 `admin/selftest.html`。它在真实 DOM + KaTeX + IndexedDB
-环境里验证渲染、存储、编辑器保存回读、导入导出、导出 PDF 与嵌入式数据，并清理
-自己创建的测试数据。
+环境里验证渲染、存储、编辑器保存回读、导入导出、导出 PDF、嵌入式数据与 AI 生成的纯函数，
+并清理自己创建的测试数据（AI 那节只验离线逻辑，不发真实请求）。
 
 ### UI 是怎么被验证的
 
@@ -324,3 +345,6 @@ node tools/test-store.mjs      # 数据层：删除标记、刷新后持久化�
   "双击即用"，并靠 `test-data.mjs` 保证两者不会悄悄跑偏。
 - **管理后台不做成服务**：它只是本地静态页面 + 一个 Node 落地脚本。不需要启停进程，
   也不引入任何服务端代码——这与"纯静态站"的定位一致。
+- **AI 生成放在后台而非构建期**：图片转文章（1:1 转写图片内容）是"写作助手"，产物是草稿，
+  因此它属于 `admin/`、随后台一起不部署；公开站点与构建脚本都不感知它的存在，
+  少一把 API Key 也只是这个按钮不可用，其余功能照旧。

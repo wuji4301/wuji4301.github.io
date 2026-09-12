@@ -219,6 +219,28 @@
         this.$.rich.innerHTML = html || '<p><br></p>';
         this.mode = 'rich';
         this.applyMode();
+        this.hydrateLocalImages();
+    };
+
+    /**
+     * 把编辑区里 `img://<id>` 的引用换成 blob: URL 显示（载入已有文章时本地图片不再裂图）。
+     * 必须同时登记 blob → `img://<id>` 映射，否则保存时 htmlToMd 会把未映射的 blob 写成空
+     * `![]()`（丢图），registerImages 还会把同一张图当新图重新入库（产生重复记录）。
+     */
+    Editor.prototype.hydrateLocalImages = function () {
+        var self = this;
+        if (!this.$.rich) return;
+        Array.prototype.forEach.call(this.$.rich.querySelectorAll('img[src^="img://"]'), function (img) {
+            var id = img.getAttribute('src').slice(6);
+            if (!id) return;
+            var cached = Store.imageURLCached(id);
+            if (cached) { self.blobMap[cached] = 'img://' + id; img.setAttribute('src', cached); return; }
+            Store.imageURL(id).then(function (url) {
+                if (!url) return;
+                self.blobMap[url] = 'img://' + id;
+                img.setAttribute('src', url);
+            });
+        });
     };
 
     Editor.prototype.applyMode = function () {

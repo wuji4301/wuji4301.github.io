@@ -192,6 +192,222 @@
         });
     });
 
+    /* --------------------------------------------------------- AI 写稿 */
+
+    var AI = global.WJAI;
+
+    // 同一时刻只跑一个请求：重复点按不会叠出一堆 API 调用
+    var aiJob = null;
+
+    function stageText(name, rec) {
+        var label = rec && rec.name ? '「' + rec.name + '」' : '这张图';
+        if (name === 'prepare') return '正在压缩并读取 ' + label + '…';
+        return '正在让 DeepSeek V4.1 读图、按内容 1:1 转写正文…（通常 20~60 秒）';
+    }
+
+    /** UI.dialog 没有对外暴露 close，这里点它自己的「✕」来收场 */
+    function closeModalOf(body) {
+        var overlay = body && body.closest ? body.closest('.wj-modal-overlay') : null;
+        var x = overlay && overlay.querySelector('.wj-modal-x');
+        if (x) x.click();
+    }
+
+    /** 当前编辑器里是否已经有东西会被覆盖 */
+    function hasContent() {
+        if (!editor || !editor.article) return false;
+        // 注意：normalize() 会给空白新文章也补一个 id，所以不能拿 id 当「有内容」的依据，
+        // 否则每篇新文章都会先弹一次覆盖确认 —— 认「仓库文章 / 已改过 / 正文有字」这三条。
+        if (editor.article.source === 'repo') return true;
+        if (editor.dirty) return true;
+        try { return !!(editor.getMarkdown() || '').trim(); } catch (e) { return false; }
+    }
+
+    function openAIWriter() {
+        if (!AI) { UI.toast('AI 模块未加载，请强制刷新页面（Ctrl + Shift + R）', 'err', 4200); return; }
+
+        var wrap = document.createElement('div');
+        wrap.innerHTML =
+            '<p class="wj-modal-text">选一张本地图片，AI 会把图片内容 <b>1:1 转写</b>成一篇草稿：' +
+            '照搬图里的文字、数据与要点，不做解释与扩写。<br />' +
+            '生成结果会覆盖当前的标题、摘要、标签与正文。</p>' +
+            '<div class="admin-actions" style="margin:12px 0">' +
+            '<button class="btn btn-primary btn-sm" data-role="upload" type="button">上传新图片</button>' +
+            '</div>' +
+            '<input type="file" accept="image/*" data-role="file" hidden />' +
+            '<div class="thumb-grid" data-role="grid"></div>' +
+            '<div class="empty" data-role="empty" hidden><p>本地还没有图片，点上面的「上传新图片」。</p></div>' +
+            '<div class="ai-panel" data-role="prog" hidden>' +
+            '<span class="ai-dot" aria-hidden="true"></span>' +
+            '<div class="grow">' +
+            '<div class="t" data-role="progTitle">正在生成文章…</div>' +
+            '<div class="d" data-role="progNote"></div>' +
+            '</div>' +
+            '<button class="btn btn-ghost btn-sm" data-role="cancel" type="button">取消</button>' +
+            '</div>' +
+            '<div class="ai-panel" data-role="setup" hidden>' +
+            '<div class="grow">' +
+            '<div class="t">还没有配置 DeepSeek API Key</div>' +
+            '<div class="d">到「设置 → AI 生成」填一把 Key，就能用 DeepSeek V4.1 看图写稿。Key 只保存在本机浏览器。</div>' +
+            '</div>' +
+            '<button class="btn btn-primary btn-sm" data-role="toSettings" type="button">去设置</button>' +
+            '</div>';
+
+        var el = {
+            upload: wrap.querySelector('[data-role="upload"]'),
+            file: wrap.querySelector('[data-role="file"]'),
+            grid: wrap.querySelector('[data-role="grid"]'),
+            empty: wrap.querySelector('[data-role="empty"]'),
+            prog: wrap.querySelector('[data-role="prog"]'),
+            progTitle: wrap.querySelector('[data-role="progTitle"]'),
+            progNote: wrap.querySelector('[data-role="progNote"]'),
+            cancel: wrap.querySelector('[data-role="cancel"]'),
+            setup: wrap.querySelector('[data-role="setup"]'),
+            toSettings: wrap.querySelector('[data-role="toSettings"]')
+        };
+
+        var images = [];
+
+        function renderGrid() {
+            el.grid.innerHTML = images.map(function (r) {
+                return '<figure class="thumb-card" data-id="' + esc(r.id) + '">' +
+                    '<button class="thumb-media" data-act="pick" type="button" aria-label="用 ' + esc(r.name) + ' 写稿">' +
+                    '<img data-img="' + esc(r.id) + '" alt="' + esc(r.name) + '" loading="lazy" />' +
+                    '</button>' +
+                    '<figcaption class="thumb-meta">' +
+                    '<div class="t" title="' + esc(r.name) + '">' + esc(r.name) + '</div>' +
+                    '<div class="d">' + UI.fmtBytes(r.size) + '</div>' +
+                    '</figcaption>' +
+                    '</figure>';
+            }).join('');
+            el.empty.hidden = images.length > 0;
+            Array.prototype.forEach.call(el.grid.querySelectorAll('img[data-img]'), function (img) {
+                var id = img.getAttribute('data-img');
+                var cached = Store.imageURLCached(id);
+                if (cached) { img.src = cached; return; }
+                Store.imageURL(id).then(function (u) { if (u) img.src = u; });
+            });
+        }
+
+        function setBusy(busy) {
+            el.upload.hidden = busy;
+            el.grid.hidden = busy;
+            el.empty.hidden = busy || images.length > 0;
+        }
+
+        function start(rec) {
+            if (aiJob) { UI.toast('上一张图还在生成中，请稍候', 'err'); return; }
+            if (!AI.isConfigured()) {
+                el.setup.hidden = false;
+                el.prog.hidden = true;
+                UI.toast('请先在「设置 → AI 生成」里填写 API Key', 'err', 3600);
+                return;
+            }
+
+            var token = {
+                cancelled: false,
+                ctrl: global.AbortController ? new global.AbortController() : null,
+                rec: rec
+            };
+            aiJob = token;
+            setBusy(true);
+            el.setup.hidden = true;
+            el.prog.hidden = false;
+            el.progTitle.textContent = '正在生成文章…';
+            el.progNote.textContent = stageText('prepare', rec);
+            el.cancel.textContent = '取消';
+
+            AI.imageToArticle({
+                imageId: rec.id,
+                imageName: rec.name,
+                signal: token.ctrl ? token.ctrl.signal : undefined,
+                onStage: function (name) {
+                    if (aiJob === token) el.progNote.textContent = stageText(name, rec);
+                }
+            }).then(function (out) {
+                if (token.cancelled || !out) return null;
+                // 手动入口：结果直接落进当前这篇，存盘后标题/状态跟着更新
+                editor.load(out.article);
+                aiJob = null;
+                closeModalOf(wrap);
+                return editor.save().then(function () {
+                    UI.toast('已按图片内容写好《' + out.article.title + '》', 'ok', 3000);
+                });
+            }).catch(function (err) {
+                if (token.cancelled) return;
+                aiJob = null;
+                el.progTitle.textContent = '生成失败';
+                el.progNote.textContent = (err && err.message) || '生成失败，请稍后重试。';
+                el.cancel.textContent = '关闭';
+            });
+        }
+
+        el.upload.addEventListener('click', function () {
+            el.file.value = '';
+            el.file.click();
+        });
+
+        el.file.addEventListener('change', function () {
+            var f = el.file.files && el.file.files[0];
+            if (!f) return;
+            AI.saveImageFile(f).then(function (rec) {
+                // 用户点的是「上传新图片（写稿）」，所以传完直接写，不再多问一次
+                if (images.indexOf(rec) === -1) images.unshift(rec);
+                start(rec);
+            }).catch(function (err) {
+                UI.toast((err && err.message) || '图片保存失败', 'err', 4200);
+            });
+        });
+
+        el.grid.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-act="pick"]');
+            if (!btn) return;
+            var card = e.target.closest('.thumb-card');
+            var id = card && card.getAttribute('data-id');
+            var rec = images.filter(function (r) { return r.id === id; })[0];
+            if (rec) start(rec);
+        });
+
+        el.cancel.addEventListener('click', function () {
+            if (aiJob) {
+                aiJob.cancelled = true;
+                if (aiJob.ctrl) aiJob.ctrl.abort();
+                aiJob = null;
+                UI.toast('已取消生成', 'ok');
+            }
+            closeModalOf(wrap);
+        });
+
+        el.toSettings.addEventListener('click', function () {
+            closeModalOf(wrap);
+            leaveTo('index.html#/settings');
+        });
+
+        if (!AI.isConfigured()) el.setup.hidden = false;
+
+        Store.listImages().then(function (list) {
+            images = (list || []).slice().sort(function (x, y) {
+                return String(y.createdAt).localeCompare(String(x.createdAt));
+            });
+            renderGrid();
+        }).catch(function (err) {
+            UI.toast('读取本地图片失败：' + ((err && err.message) || '未知错误'), 'err', 3600);
+        });
+
+        UI.dialog({
+            title: 'AI 写稿（图片转文章）',
+            body: wrap,
+            width: '760px',
+            actions: [{ label: '关闭', value: false }]
+        });
+    }
+
+    document.getElementById('aiBtn').addEventListener('click', function () {
+        // 手写稿先问一句：按钮是手动触发的，但覆盖内容仍要用户点头
+        if (!hasContent()) { openAIWriter(); return; }
+        UI.confirm('AI 写稿会覆盖当前内容', '生成结果会替换当前的标题、摘要、标签与正文，且无法撤销。确定继续？', '继续写稿')
+            .then(function (yes) { if (yes) openAIWriter(); });
+    });
+
     /* ------------------------------------------------------------- 启动 */
 
     var m = /[?&]id=([^&]+)/.exec(location.search);

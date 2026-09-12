@@ -33,7 +33,6 @@ async function build(opts = {}) {
 
   const entries = Array.isArray(index) ? index : (index.articles || []);
   const inline = [];
-  const byId = {};
   const missing = [];
 
   for (const entry of entries) {
@@ -51,7 +50,6 @@ async function build(opts = {}) {
     const item = Object.assign({}, full);
     delete item.repoSnapshot;
     inline.push(item);
-    byId[item.id] = item;
   }
 
   // 只发布状态为 published 的文章；草稿保留在 JSON 文件里但不进公开数据
@@ -67,9 +65,13 @@ async function build(opts = {}) {
     ' */'
   ].join('\n');
 
+  // BY_ID 在运行时按同一批对象建索引，而不是把数据再序列化一遍：
+  // 这样 BY_ID[id] 与列表里那篇是同一个引用（调用方可直接用 === 比较），
+  // 且索引严格与列表一一对应（草稿本来就不该进这份公开数据），文件体积也减半。
   const out = header + '\n' +
     'window.WJ_ARTICLES = ' + JSON.stringify(published, null, 2) + ';\n' +
-    'window.WJ_ARTICLES_BY_ID = ' + JSON.stringify(byId, null, 2) + ';\n';
+    'window.WJ_ARTICLES_BY_ID = {};\n' +
+    'window.WJ_ARTICLES.forEach(function (a) { window.WJ_ARTICLES_BY_ID[a.id] = a; });\n';
 
   await writeFile(OUT, out, 'utf8');
 
