@@ -415,56 +415,279 @@
         if (!container || !tocEl) return;
         var links = Array.prototype.slice.call(tocEl.querySelectorAll('a'));
         if (!links.length) return;
-        var map = {};
+        // 用数组而不是以 id 为键的对象：中文数字型 slug（如「123」）会被 JS 当整数键
+        // 重排，导致目录顺序与正文位置对不上。数组严格保持目录自身的先后。
+        var items = [];
         links.forEach(function (a) {
             var id = decodeURIComponent((a.getAttribute('href') || '').slice(1));
             var h = doc.getElementById(id);
-            if (h) map[id] = { link: a, el: h };
+            if (h) items.push({ id: id, link: a, el: h, li: a.parentNode });
         });
-        var ids = Object.keys(map);
-        if (!ids.length) return;
+        if (!items.length) return;
         if (tocEl.getAttribute('data-toc-bound')) return;   // 避免重复绑定
         tocEl.setAttribute('data-toc-bound', '');
         ensureMetrics();
         var lastActive = null;
+        var firstItem = items[0];
         var navEl = tocEl.querySelector('nav');
 
-        /* 目录滑轨：把 nav 上的 ::before 平移到当前项。offsetTop / offsetHeight 是
-           布局读数，所以只在活动项真的换了的时候读一次（不是每帧），且读之前不写
-           样式 —— 读写不交替，不会触发多余的同步布局。 */
-        function moveRail(id) {
+        /* ---------------------------------------------- 目录折叠（条目过多时） */
+        var parentItems = Array.prototype.slice.call(tocEl.querySelectorAll('.toc-item.has-kids'));
+        var toggleAllBtn = doc.getElementById('tocToggleAll');
+        // 被收起的子项不参与高亮判定：收起来时先把它们的 id 记下来，
+        // 滚动帧里只查表，不去读 DOM 布局。
+        var hiddenIds = {};
+
+        function refreshHidden() {
+            hiddenIds = {};
+            for (var i = 0; i < items.length; i++) {
+                if (isHiddenLi(items[i].li)) hiddenIds[items[i].id] = true;
+            }
+        }
+
+        /** 这个 <li> 是否落在某个"已被收起的条目"的子列表里（即当前看不见） */
+        function isHiddenLi(li) {
+            var p = li ? li.parentNode : null;
+            while (p && p !== tocEl) {
+                if (p.classList && p.classList.contains('toc-sub') &&
+                    p.parentNode && p.parentNode.classList.contains('collapsed')) return true;
+                p = p.parentNode;
+            }
+            return false;
+        }
+
+        /** 被收起的组藏住时，退到"最贴近它、且仍看得见"的祖先条目 */
+        function visibleStandIn(item) {
+            var el = item.li;
+            while (el && el !== tocEl) {
+                if (el.classList && el.classList.contains('toc-item') && !isHiddenLi(el)) {
+                    for (var i = 0; i < items.length; i++) if (items[i].li === el) return items[i];
+                    return null;
+                }
+                el = el.parentNode;
+            }
+            return null;
+        }
+
+        function setCollapsed(li, collapsed) {
+            if (collapsed) li.classList.add('collapsed');
+            else li.classList.remove('collapsed');
+            var btn = li.querySelector('.toc-toggle');
+            if (btn) {
+                var label = collapsed ? '展开子目录' : '收起子目录';
+                btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                btn.setAttribute('aria-label', label);
+                btn.setAttribute('title', label);
+            }
+        }
+
+        /** 折叠状态变化后统一收尾：重算可见项 → 强制重跑高亮 → 同步「全部」按钮文案 */
+        function afterToggle() {
+            refreshHidden();
+            lastActive = null;      // 置空以保证 update 重跑（否则会因"没换项"直接返回）
+            update();
+            syncToggleAll();
+        }
+
+        function syncToggleAll() {
+            if (!toggleAllBtn) return;
+            toggleAllBtn.hidden = parentItems.length === 0;
+            if (!parentItems.length) return;
+            var anyExpanded = false;
+            for (var i = 0; i < parentItems.length; i++) {
+                if (!parentItems[i].classList.contains('collapsed')) { anyExpanded = true; break; }
+            }
+            toggleAllBtn.textContent = anyExpanded ? '收起全部' : '展开全部';
+        }
+
+        /* 用户手动收起的组：停在这一节里时不自动撑开（否则箭头等于点不动），
+           一旦滚到别的章节（活动项换了）就恢复自动展开。 */
+        var stickyCollapsed = [];
+        var lastRawId = null;     // 上一次"按位置判定"出的章节 id
+        function isStuck(item) {
+            var el = item.li ? item.li.parentNode : null;   // 从它所在的容器开始向上找祖先条目
+            while (el && el !== tocEl) {
+                if (el.classList && el.classList.contains('toc-item') &&
+                    stickyCollapsed.indexOf(el) >= 0) return true;
+                el = el.parentNode;
+            }
+            return false;
+        }
+
+        /* 当前章节被收起的组藏住时，把它所在的各级分组由外向内依次展开。
+           有改动就返回 true，调用方据此重算"哪些项当前不可见"。 */
+        function expandPathTo(item) {
+            var path = [];
+            var el = item.li ? item.li.parentNode : null;
+            while (el && el !== tocEl) {
+                if (el.classList && el.classList.contains('toc-item')) path.push(el);
+                el = el.parentNode;
+            }
+            var changed = false;
+            for (var k = path.length - 1; k >= 0; k--) {
+                if (path[k].classList.contains('collapsed')) { setCollapsed(path[k], false); changed = true; }
+            }
+            return changed;
+        }
+
+        /* 目录一屏放不下时，默认只展开「当前所在章节」那一条路径，其余分组收起，
+           先让整份目录看得完；想通读全貌随时可以点分组箭头或头部的「展开全部」。 */
+        function autoFit() {
+            if (!parentItems.length) return;
+            if (tocEl.scrollHeight <= tocEl.clientHeight + 1) return;   // 放得下就保持全展开
+            for (var i = 0; i < parentItems.length; i++) setCollapsed(parentItems[i], true);
+            // 只重新展开"包着当前项"的那几级（不含当前项自己的子列表）：
+            // 当前项始终看得见，其余分组保持收拢，目录才收得进一屏。
+            var path = [];
+            var el = lastActive ? lastActive.li.parentNode : null;   // 从当前项所在的容器向上
+            while (el && el !== tocEl) {
+                if (el.classList && el.classList.contains('toc-item')) path.push(el);
+                el = el.parentNode;
+            }
+            for (var k = path.length - 1; k >= 0; k--) setCollapsed(path[k], false);  // 由外向内展开
+            afterToggle();
+        }
+
+        /* 目录滑轨：把 nav 上的 ::before 平移到当前项。offsetLeft / offsetTop /
+           offsetHeight 都是布局读数，只在活动项真的换了的时候读一次（不是每帧）。
+           横向也跟随条目本身 —— 次级条目有缩进，滑轨跟着走才看得出当前在哪一层。 */
+        function moveRail(item) {
             if (!navEl) return;
-            var link = id ? map[id].link : null;
-            if (!link) { navEl.removeAttribute('data-toc-active'); return; }
-            navEl.style.setProperty('--toc-y', link.offsetTop + 'px');
-            navEl.style.setProperty('--toc-h', link.offsetHeight + 'px');
+            if (!item) { navEl.removeAttribute('data-toc-active'); return; }
+            navEl.style.setProperty('--toc-x', item.link.offsetLeft + 'px');
+            navEl.style.setProperty('--toc-y', item.link.offsetTop + 'px');
+            navEl.style.setProperty('--toc-h', item.link.offsetHeight + 'px');
             navEl.setAttribute('data-toc-active', '');
         }
 
+        /* 高亮当前项，并把它的所有上级条目也标成「所在章节」：
+           读到子节时父节同步点亮，目录的主次关系才有呼应。 */
+        function markActive(item) {
+            links.forEach(function (a) { a.classList.remove('active'); });
+            var marked = tocEl.querySelectorAll('.toc-item.in-section');
+            for (var k = 0; k < marked.length; k++) marked[k].classList.remove('in-section');
+            if (!item) { moveRail(null); return; }
+            item.link.classList.add('active');
+            var el = item.link.parentNode;      // 当前项所在的 <li>
+            if (el) el = el.parentNode;         // 从它的容器开始向上找祖先条目
+            while (el && el !== tocEl) {
+                if (el.classList && el.classList.contains('toc-item')) el.classList.add('in-section');
+                el = el.parentNode;
+            }
+            moveRail(item);
+        }
+
+        /* 让当前项始终留在目录的可见区域内。目录面板本身可滚动（长目录 / 窄屏），
+           高亮项一旦滚出视野，看上去就"没有高亮"了 —— 这里只在它出界时轻轻带回。 */
+        function revealLink(link) {
+            if (!link || tocEl.scrollHeight <= tocEl.clientHeight + 1) return;
+            var box = tocEl.getBoundingClientRect();
+            var r = link.getBoundingClientRect();
+            var pad = 14;
+            if (r.top < box.top + pad) tocEl.scrollTop -= (box.top + pad - r.top);
+            else if (r.bottom > box.bottom - pad) tocEl.scrollTop += (r.bottom - (box.bottom - pad));
+        }
+
         // 标题位置缓存：尺寸版本变了才重算，滚动帧里只做数值比较
-        var topsOf = makeTopCache(ids.map(function (id) { return map[id].el; }));
+        var topsOf = makeTopCache(items.map(function (it) { return it.el; }));
+
+        /* 阅读线：视口顶部往下 120px，标题越过它就点亮。 */
+        var READ_LINE = 120;
+
+        /* 尾部补偿：越贴近文档底部，标题就越压不到阅读线 —— 当 tops[i] 超过
+           「可滚动高度 + 阅读线」时，无论怎么滚它都越不过线，光靠位置判定这些
+           末尾的标题永远轮不到高亮。这里从"最后一个压得到线的标题"起，按剩余
+           滚动量线性推进到最后一节，末尾几节便能一节不落地点亮；推进只在位置
+           判定已经走到尽头之后才开始，所以不会抢在读者前面点亮。 */
+        function tailIndex(bestIdx, y, tops) {
+            var last = items.length - 1;
+            if (!(_metrics.scrollable > 0) || last <= 0) return bestIdx;
+            var edge = _metrics.scrollable + READ_LINE;     // 还能压到阅读线的最大文档位置
+            var end = -1;                                    // 最后一个压得到线的标题
+            for (var i = last; i >= 0; i--) {
+                if (tops[i] <= edge) { end = i; break; }
+            }
+            if (end >= last) return bestIdx;                 // 全都压得到线，不必补偿
+            var from = end < 0 ? 0 : end;
+            var y0 = end < 0 ? 0 : Math.max(0, tops[end] - READ_LINE);
+            var span = _metrics.scrollable - y0;             // 位置判定走不到的滚动区间
+            if (!(span > 0) || y <= y0) return bestIdx;
+            var k = Math.min(1, (y - y0) / span);
+            var idx = from + Math.round((last - from) * k);
+            return idx > bestIdx ? idx : bestIdx;
+        }
 
         function update() {
             var tops = topsOf();
             var y = global.scrollY;
-            var best = null, bestTop = -Infinity;
-            for (var i = 0; i < ids.length; i++) {
-                var top = tops[i] - 120 - y;
-                if (top <= 0 && top > bestTop) { bestTop = top; best = ids[i]; }
+            // 判定不排除被收起的条目：每一节都要能在目录里亮起来，
+            // 收起只是把子项折起来，不该让它"永远轮不到高亮"。
+            var best = null, bestTop = -Infinity, bestIdx = -1;
+            for (var i = 0; i < items.length; i++) {
+                var top = tops[i] - READ_LINE - y;
+                if (top <= 0 && top > bestTop) { bestTop = top; best = items[i]; bestIdx = i; }
             }
-            // 末尾兜底：只按"越过激活线"判定时，最后一节常常永远轮不到它 ——
-            // 结尾的段落短、后面又跟着版权与上一篇/下一篇，页面根本没有能继续
-            // 滚动的余量，小标题就压不到那条线。已经到底了就把末尾一项点亮。
-            if (best && _metrics.scrollable > 0 && _metrics.scrollable - y <= 4) {
-                best = ids[ids.length - 1];
+            // 还没越过第一条激活线时（例如刚进页面、正文第一段还没有小标题），
+            // 默认点亮第一项，避免整份目录出现"一个高亮都没有"的空档。
+            if (!best) { best = firstItem; bestIdx = 0; }
+            // 尾部补偿：越接近底部，按剩余比例把末尾各节依次点亮（详见 tailIndex）
+            var tailIdx = tailIndex(bestIdx, y, tops);
+            if (tailIdx > bestIdx) { bestIdx = tailIdx; best = items[bestIdx]; }
+            // 末尾兜底：已经到底了就点亮最后一节
+            if (_metrics.scrollable > 0 && _metrics.scrollable - y <= 4) {
+                bestIdx = items.length - 1;
+                best = items[bestIdx];
+            }
+            // 判据用"位置算出来的章节"，而不是回退后的高亮项：折叠本身会让高亮
+            // 落到父条目上，那不是"读者换章了"，用户的手动收起不能被它冲掉。
+            if (best.id !== lastRawId) { stickyCollapsed = []; lastRawId = best.id; }
+            // 当前章节若正藏在收起的组里，先把它展开再高亮 —— 每一节都要亮得起来。
+            // 例外：用户自己刚收起的那个组不硬撑开，改为退到可见的父条目
+            // （父条目仍然亮着，目录里不会出现"一节都没高亮"的空档）。
+            if (hiddenIds[best.id]) {
+                if (!isStuck(best) && expandPathTo(best)) refreshHidden();
+                if (hiddenIds[best.id]) best = visibleStandIn(best) || best;
             }
             if (best === lastActive) return;
             lastActive = best;
-            links.forEach(function (a) { a.classList.remove('active'); });
-            if (best) map[best].link.classList.add('active');
-            moveRail(best);
+            markActive(best);
+            revealLink(best.link);
         }
+
+        /* 折叠交互：事件委托在目录容器上，条目是动态渲染的也不用逐个绑定。 */
+        tocEl.addEventListener('click', function (e) {
+            var t = e.target;
+            while (t && t !== tocEl && !(t.classList && t.classList.contains('toc-toggle'))) t = t.parentNode;
+            if (!t || t === tocEl) return;
+            var li = t.parentNode;
+            while (li && li !== tocEl && !(li.classList && li.classList.contains('toc-item'))) li = li.parentNode;
+            if (!li || li === tocEl) return;
+            e.preventDefault();
+            var collapsed = !li.classList.contains('collapsed');
+            setCollapsed(li, collapsed);
+            // 记下"这是用户自己收的"：停在这一节里就不再自动撑开它
+            var idx = stickyCollapsed.indexOf(li);
+            if (collapsed) { if (idx < 0) stickyCollapsed.push(li); }
+            else if (idx >= 0) stickyCollapsed.splice(idx, 1);
+            afterToggle();
+        });
+
+        if (toggleAllBtn) {
+            toggleAllBtn.addEventListener('click', function () {
+                var anyExpanded = false;
+                for (var i = 0; i < parentItems.length; i++) {
+                    if (!parentItems[i].classList.contains('collapsed')) { anyExpanded = true; break; }
+                }
+                // anyExpanded：当前还有展开的 → 本次动作是「全部收起」
+                for (var k = 0; k < parentItems.length; k++) setCollapsed(parentItems[k], anyExpanded);
+                stickyCollapsed = anyExpanded ? parentItems.slice() : [];
+                afterToggle();
+            });
+        }
+
         watchOnFrame(update);
+        autoFit();          // 条目过多时先收拢到"当前章节"这一条路径
+        syncToggleAll();
     }
 
     /** 渲染正文（Markdown → HTML），并按需加载 KaTeX 排版公式 */

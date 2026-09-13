@@ -137,7 +137,9 @@ html.theme-vt::view-transition-new(root) {
     border-radius: 0 2px 2px 0;
     background: var(--accent);
     opacity: 0;
-    transform: translateY(var(--toc-y, 0px));
+    /* 横向也跟随当前条目：目录分了主次层级，次级条目有缩进，
+       滑轨跟着一起走，才看得出当前停在哪一层。 */
+    transform: translate(var(--toc-x, 0px), var(--toc-y, 0px));
     transition: transform var(--dur-2) var(--ease-out),
                 height var(--dur-2) var(--ease-out),
                 opacity var(--dur-1) ease;

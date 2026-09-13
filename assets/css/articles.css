@@ -297,8 +297,15 @@
     border: 1px solid var(--border);
     border-radius: var(--r-xl);
 }
-.toc h4 {
+.toc-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
     margin-bottom: 10px;
+}
+.toc h4 {
+    margin: 0;
     padding-left: 9px;
     font-size: var(--fs-xs);
     font-weight: 700;
@@ -306,6 +313,32 @@
     text-transform: uppercase;
     color: var(--text-faint);
 }
+/* 「收起全部 / 展开全部」：目录条目多的时候一键收拢 */
+.toc-all {
+    flex: none;
+    padding: 3px 8px;
+    font: inherit;
+    font-size: var(--fs-xs);
+    color: var(--text-faint);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--r-xs);
+    cursor: pointer;
+    transition: color var(--dur-1) ease, border-color var(--dur-1) ease, background var(--dur-1) ease;
+}
+.toc-all:hover { color: var(--text); border-color: var(--border-strong, var(--border)); background: var(--surface-2); }
+.toc-all[hidden] { display: none; }
+
+.toc nav ul { margin: 0; padding: 0; list-style: none; }
+.toc nav li { margin: 0; }
+/* 每个条目是一格网格：第一行放标题（右侧给箭头留位），第二行放子列表。
+   箭头与标题同行、靠 align-self 垂直居中，不必按层级写死高度。 */
+.toc .toc-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+}
+.toc .toc-item > a { grid-area: 1 / 1; }
+.toc .toc-item > .toc-sub { grid-area: 2 / 1; }
 .toc a {
     display: block;
     padding: 5px 9px;
@@ -318,11 +351,55 @@
 }
 .toc a:hover { color: var(--text); background: var(--surface-2); }
 .toc a.active { color: var(--text); background: var(--surface-2); border-left-color: var(--accent); }
-.toc a.lv1 { font-weight: 700; }
-.toc a.lv2 { padding-left: 9px; }
-.toc a.lv3 { padding-left: 20px; font-size: var(--fs-sm); }
-.toc a.lv4 { padding-left: 31px; font-size: var(--fs-sm); }
-.toc a.lv5, .toc a.lv6 { padding-left: 40px; font-size: var(--fs-sm); opacity: .85; }
+
+/* 主次关系：顶层条目是"主"，更醒目；次级条目收进带引导线的子列表，字号递降。
+   当前项所在的父级（.in-section）也会点亮，读到子节时能看清它归属哪一节。 */
+.toc .toc-root > .toc-item > a { font-weight: 700; color: var(--text); }
+.toc .toc-sub {
+    margin: 2px 0 6px 10px;
+    border-left: 1px solid var(--border);
+    animation: tocSubIn var(--dur-2) var(--ease-out);
+}
+@keyframes tocSubIn { from { opacity: 0; } to { opacity: 1; } }
+.toc .toc-sub a { font-size: var(--fs-sm); }
+.toc .toc-sub .toc-sub a { font-size: var(--fs-xs); opacity: .9; }
+.toc .toc-item.in-section > a { color: var(--text); }
+
+/* 父级折叠：有子项的条目右侧留出一枚小箭头，点它收起 / 展开子列表。
+   收起直接切换 display —— 高度动画会触发重排，而本站的动画约定是只动
+   opacity / transform；重新展开时子列表由 tocSubIn 淡入。 */
+.toc .toc-item.has-kids > a { padding-right: 28px; }
+.toc-toggle {
+    grid-area: 1 / 1;
+    justify-self: end;
+    align-self: center;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    color: var(--text-faint);
+    background: none;
+    border: 0;
+    border-radius: var(--r-xs);
+    cursor: pointer;
+    transition: color var(--dur-1) ease, background var(--dur-1) ease;
+}
+.toc-toggle::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    margin-top: -3px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform var(--dur-1) var(--ease-out);
+}
+.toc-toggle:hover { color: var(--text); background: var(--surface-2); }
+.toc-item.collapsed > .toc-toggle::before { margin-top: 0; transform: rotate(-45deg); }
+
+.toc-item.collapsed > .toc-sub { display: none; }
 
 .article-foot {
     display: flex;

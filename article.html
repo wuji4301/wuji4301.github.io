@@ -64,7 +64,10 @@
         <div class="article-layout">
             <article class="prose" id="articleBody" aria-live="polite"></article>
             <aside class="toc" id="toc" hidden aria-label="目录">
-                <h4>目录</h4>
+                <div class="toc-head">
+                    <h4>目录</h4>
+                    <button class="toc-all" id="tocToggleAll" type="button" aria-label="收起全部子目录">收起全部</button>
+                </div>
                 <nav id="tocNav"></nav>
             </aside>
         </div>
@@ -166,6 +169,42 @@
                 return '<a class="tag" href="' + Blog.tagURL(t) + '">' + Blog.esc(t) + '</a>';
             }
 
+            /**
+             * 把扁平的目录数据 [{level,text,id}] 整理成「主 / 次」嵌套结构：
+             * 比它浅的最近一个标题作为父级，更深的标题收进父级的子列表。
+             * 这样一级标题是独立的主条目，二级、三级依次缩进为次条目，
+             * 而不是全部平铺成一长串 —— 层级关系一眼可读。
+             *
+             * 有子项的条目带一个折叠按钮（.toc-toggle）：点它给条目加上 .collapsed，
+             * 子列表随之隐藏；重新展开时子列表淡入，不做高度动画。
+             */
+            function tocHTML(toc) {
+                var roots = [], stack = [];
+                toc.forEach(function (t) {
+                    var node = { level: t.level, id: t.id, text: t.text, children: [] };
+                    // 弹出比当前更深的层级，栈顶就是它最近的父级（可能为空 → 顶层条目）
+                    while (stack.length && stack[stack.length - 1].level >= node.level) stack.pop();
+                    (stack.length ? stack[stack.length - 1].children : roots).push(node);
+                    stack.push(node);
+                });
+                function renderList(nodes, depth) {
+                    return '<ul class="toc-list ' + (depth ? 'toc-sub' : 'toc-root') + '">' +
+                        nodes.map(function (n) {
+                            var kids = n.children.length > 0;
+                            return '<li class="toc-item' + (kids ? ' has-kids' : '') + '">' +
+                                '<a class="lv' + n.level + '" href="#' + Blog.esc(n.id) + '">' +
+                                Blog.esc(n.text) + '</a>' +
+                                (kids
+                                    ? '<button class="toc-toggle" type="button" aria-expanded="true"' +
+                                      ' aria-label="收起子目录" title="收起子目录"></button>' +
+                                      renderList(n.children, depth + 1)
+                                    : '') +
+                                '</li>';
+                        }).join('') + '</ul>';
+                }
+                return renderList(roots, 0);
+            }
+
             function renderArticle(a) {
                 document.title = a.title + ' · 无极';
                 var desc = a.summary || Blog.plainText(a.body).slice(0, 120);
@@ -198,9 +237,7 @@
                 var toc = MD.extractTOC(a.body || '');
                 if (toc.length >= 2) {
                     tocEl.hidden = false;
-                    tocNav.innerHTML = toc.map(function (t) {
-                        return '<a class="lv' + t.level + '" href="#' + Blog.esc(t.id) + '">' + Blog.esc(t.text) + '</a>';
-                    }).join('');
+                    tocNav.innerHTML = tocHTML(toc);
                     WJSite.initTOC(bodyEl, tocEl);
                 } else {
                     tocEl.hidden = true;
